@@ -20,6 +20,7 @@ public class Plugin : BasePlugin
         Log.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
 
         TSKConfig.Read();
+        UiTextCaptureService.Initialize();
         Window.Init();
         Translation.InitAsync().Wait();
         Patch.Initialize();

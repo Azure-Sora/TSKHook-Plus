@@ -125,4 +125,14 @@ public class PluginBehavior : MonoBehaviour
             Plugin.Global.Log.LogInfo("FPS changed. Reset to: " + TSKConfig.FPS);
         }
     }
+
+    private void OnApplicationQuit()
+    {
+        UiTextCaptureService.Shutdown();
+    }
+
+    private void OnDestroy()
+    {
+        UiTextCaptureService.Shutdown();
+    }
 }

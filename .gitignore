@@ -1,3 +1,19 @@
 .vs/
 bin/
 obj/
+.local/
+.codegraph/
+
+# IDE / build / test output
+*.user
+*.suo
+*.log
+TestResults/
+coverage/
+
+# Codex local planning and one-off investigation notes
+task_plan.md
+findings.md
+progress.md
+M0_TEST_INSTRUCTIONS.md
+reports/

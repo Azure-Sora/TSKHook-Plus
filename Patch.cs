@@ -19,6 +19,7 @@ public class Patch
     public static void Initialize()
     {
         Harmony.CreateAndPatchAll(typeof(Patch));
+        Harmony.CreateAndPatchAll(typeof(NetworkCapturePatch));
     }
 
     [HarmonyPrefix]

@@ -4,5 +4,7 @@
     "translation": true,
     "width": 1280,
     "height": 720,
-    "zoom": 1.0
+    "zoom": 1.0,
+    "uiCapture": true,
+    "uiCaptureFlushSeconds": 5
 }
