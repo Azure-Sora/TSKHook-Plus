@@ -92,7 +92,7 @@ public class TSKConfig
             }
             else
             {
-                UiCaptureEnabled = true;
+                UiCaptureEnabled = false;
                 needWrite = true;
             }
 
@@ -138,11 +138,11 @@ public class TSKConfig
             height = 720;
             zoom = 1.0f;
             UiTranslationEnabled = true;
-            UiCaptureEnabled = true;
+            UiCaptureEnabled = false;
             UiCaptureFlushSeconds = 5;
 
             // Create default JSON file
-            WriteJsonFile(0.5, 60, true, width, height, zoom, true, true, 5);
+            WriteJsonFile(0.5, 60, true, width, height, zoom, true, false, 5);
         }
     }
 
