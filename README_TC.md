@@ -13,6 +13,7 @@
 4. [中文翻譯](Translation.md)
 5. 遊戲視窗大小設定
 6. 更改圖鑑放大縮小倍率
+7. [技能文字批次採集模式](SKILL_BATCH_CAPTURE.md)
 
 ## 需求
 
@@ -36,6 +37,9 @@
 | width     | 1280 | 遊戲視窗寬度                     |
 | height    | 720  | 遊戲視窗高度                     | 
 | zoom      | 1.0  | 角色立繪放大縮小倍率                 |
+| uiCapture | true | 採集遊戲 API 返回的日文 UI 文字      |
+| skillBatchCapture | false | 啟用需手動觸發的技能批次採集模式 |
+| skillBatchDelayMilliseconds | 1200 | 每次批次請求的間隔毫秒數       |
 
 ## 綁定鍵
 
@@ -46,6 +50,7 @@
 | F6   | 重設 | 將遊戲重設至正常速度                               | 
 | F7   | 減少 | 減慢遊戲速度，視乎您的 `speed` 設定                   | 
 | F8   | 增加 | 加快遊戲速度，視乎您的 `speed` 設定                   |
+| F9   | 採集 | 開始／取消技能文字批次採集                           |
 | F10  | 翻譯 | 刪除翻譯快取                                   |
 | F11  | 翻譯 | 開啟/關閉中文翻譯功能                              |
 | F12  | 截圖 | 截取當前的遊戲畫面至`C:\Users\<username>\Pictures` |

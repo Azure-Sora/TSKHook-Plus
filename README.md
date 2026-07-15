@@ -13,6 +13,7 @@ Twinkle Star Knights mod for DMM Game Player version
 4. [Translation](Translation.md) (Traditional Chinese only)
 5. Game window size setting
 6. Picture Book zoom ratio
+7. [Opt-in skill text batch capture](SKILL_BATCH_CAPTURE.md)
 
 ## Requirement
 
@@ -36,6 +37,9 @@ You can edit config.json(`./BepInEx/plugins/config.json`) if you don't like defa
 | width     | 1280          | Game window width                                            |
 | height    | 720           | Game window height                                           |
 | zoom      | 1.0           | Character standing zoom in/out ratio                         |
+| uiCapture | true          | Capture Japanese UI text returned by game APIs               |
+| skillBatchCapture | false | Enable the opt-in read-only skill batch capture mode          |
+| skillBatchDelayMilliseconds | 1200 | Delay between batch requests (500–10000 ms)          |
 
 ## Key binding
 
@@ -46,6 +50,7 @@ You can edit config.json(`./BepInEx/plugins/config.json`) if you don't like defa
 | F6   | Reset       | Reset game speed to 1x/normal                                                 | 
 | F7   | Decrease    | Decrease game speed (2-0.5 etc), depends on your `speed` config               | 
 | F8   | Increase    | Increase game speed (1+0.5 etc), depends on your `speed` config               |
+| F9   | Skill capture | Start/cancel the opt-in skill text batch capture                           |
 | F10  | Translation | Clear translation cache                                                       |
 | F11  | Translation | Enable/Disable translation feature                                            |
 | F12  | Screenshot  | Screenshot current frame and save to Pictures(`C:\Users\<username>\Pictures`) |

@@ -98,6 +98,14 @@ internal static class UiTextCaptureService
         }
     }
 
+    internal static void FlushNow()
+    {
+        if (Volatile.Read(ref initialized) != 0 && Volatile.Read(ref shuttingDown) == 0)
+        {
+            Flush();
+        }
+    }
+
     private static void ExtractStrings(string apiName, string path, JsonElement element,
         IReadOnlyDictionary<string, string> inheritedContext)
     {

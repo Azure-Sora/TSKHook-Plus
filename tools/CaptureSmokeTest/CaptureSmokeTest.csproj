@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="..\..\UiTranslation\CaptureTextFilter.cs" Link="CaptureTextFilter.cs" />
+    <Compile Include="..\..\UiTranslation\SkillBatchCatalog.cs" Link="SkillBatchCatalog.cs" />
   </ItemGroup>
 </Project>

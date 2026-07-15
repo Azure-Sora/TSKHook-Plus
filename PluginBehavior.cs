@@ -75,6 +75,11 @@ public class PluginBehavior : MonoBehaviour
             Notification.Popup("Translation", "Translation cache cleared and UI translations reloaded.");
         }
 
+        if (Input.GetKeyDown(KeyCode.F9))
+        {
+            SkillBatchCaptureService.Toggle();
+        }
+
         if (Input.GetKeyDown(KeyCode.F11))
         {
             TSKConfig.TranslationEnabled = !TSKConfig.TranslationEnabled;
@@ -102,6 +107,7 @@ public class PluginBehavior : MonoBehaviour
         }
 
         LastSkipExecuteTime += Time.deltaTime;
+        SkillBatchCaptureService.Update();
         if (LastSkipExecuteTime >= CtrlWaitTime && Input.GetKey(KeyCode.LeftControl) || LastSkipExecuteTime >= CtrlWaitTime && Input.GetKey(KeyCode.RightControl))
         {
             LastSkipExecuteTime = 0.0f;
@@ -131,12 +137,14 @@ public class PluginBehavior : MonoBehaviour
 
     private void OnApplicationQuit()
     {
+        SkillBatchCaptureService.Shutdown();
         UiTextCaptureService.Shutdown();
         UiTranslationService.Shutdown();
     }
 
     private void OnDestroy()
     {
+        SkillBatchCaptureService.Shutdown();
         UiTextCaptureService.Shutdown();
         UiTranslationService.Shutdown();
     }

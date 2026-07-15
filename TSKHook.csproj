@@ -4,7 +4,7 @@
     <TargetFramework>net6.0</TargetFramework>
     <AssemblyName>TSKHook</AssemblyName>
     <Description>TSKHook</Description>
-    <Version>1.3.5-m1.6</Version>
+    <Version>1.4.0-skill-batch</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>
     <RestoreAdditionalProjectSources>
@@ -34,6 +34,7 @@
     <GameDlls Include="
 		      $(GamePath)\BepInEx\interop\Assembly-CSharp.dll;
 		      $(GamePath)\BepInEx\interop\Newtonsoft.Json.dll;
+		      $(GamePath)\BepInEx\interop\UniTask.dll;
 		      $(GamePath)\BepInEx\interop\Il2Cpp*.dll;
 		      $(GamePath)\BepInEx\interop\spine-*.dll;
 		      $(GamePath)\BepInEx\interop\Unity*.dll">

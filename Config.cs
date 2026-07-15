@@ -15,6 +15,8 @@ public class TSKConfig
     public static bool UiTranslationEnabled;
     public static bool UiCaptureEnabled;
     public static int UiCaptureFlushSeconds;
+    public static bool SkillBatchCaptureEnabled;
+    public static int SkillBatchDelayMilliseconds;
 
     public static void Read()
     {
@@ -116,8 +118,29 @@ public class TSKConfig
                 needWrite = true;
             }
 
+            if (config.TryGetProperty("skillBatchCapture", out var skillBatchCaptureValue))
+            {
+                SkillBatchCaptureEnabled = skillBatchCaptureValue.GetBoolean();
+            }
+            else
+            {
+                SkillBatchCaptureEnabled = false;
+                needWrite = true;
+            }
+
+            if (config.TryGetProperty("skillBatchDelayMilliseconds", out var skillBatchDelayValue))
+            {
+                SkillBatchDelayMilliseconds = System.Math.Clamp(skillBatchDelayValue.GetInt32(), 500, 10000);
+            }
+            else
+            {
+                SkillBatchDelayMilliseconds = 1200;
+                needWrite = true;
+            }
+
             if (needWrite) WriteJsonFile(Speed, FPS, TranslationEnabled, width, height, zoom,
-                UiTranslationEnabled, UiCaptureEnabled, UiCaptureFlushSeconds);
+                UiTranslationEnabled, UiCaptureEnabled, UiCaptureFlushSeconds,
+                SkillBatchCaptureEnabled, SkillBatchDelayMilliseconds);
 
             Plugin.Global.Log.LogInfo("Current setting:");
             Plugin.Global.Log.LogInfo("Game speed(each step): " + Speed);
@@ -126,6 +149,8 @@ public class TSKConfig
             Plugin.Global.Log.LogInfo("Zoom ratio: " + zoom);
             Plugin.Global.Log.LogInfo("UI translation: " + (UiTranslationEnabled ? "Enabled" : "Disabled"));
             Plugin.Global.Log.LogInfo("UI capture: " + (UiCaptureEnabled ? "Enabled" : "Disabled"));
+            Plugin.Global.Log.LogInfo("Skill batch capture: " +
+                                      (SkillBatchCaptureEnabled ? "Enabled" : "Disabled"));
         }
         else
         {
@@ -140,14 +165,17 @@ public class TSKConfig
             UiTranslationEnabled = true;
             UiCaptureEnabled = true;
             UiCaptureFlushSeconds = 5;
+            SkillBatchCaptureEnabled = false;
+            SkillBatchDelayMilliseconds = 1200;
 
             // Create default JSON file
-            WriteJsonFile(0.5, 60, true, width, height, zoom, true, true, 5);
+            WriteJsonFile(0.5, 60, true, width, height, zoom, true, true, 5, false, 1200);
         }
     }
 
     public static void WriteJsonFile(double speed, int fps, bool enabled, int w, int h, float z,
-        bool uiTranslation, bool uiCapture, int uiCaptureFlushSeconds)
+        bool uiTranslation, bool uiCapture, int uiCaptureFlushSeconds,
+        bool skillBatchCapture, int skillBatchDelayMilliseconds)
     {
         var config = new config
         {
@@ -159,7 +187,9 @@ public class TSKConfig
             zoom = z,
             uiTranslation = uiTranslation,
             uiCapture = uiCapture,
-            uiCaptureFlushSeconds = uiCaptureFlushSeconds
+            uiCaptureFlushSeconds = uiCaptureFlushSeconds,
+            skillBatchCapture = skillBatchCapture,
+            skillBatchDelayMilliseconds = skillBatchDelayMilliseconds
         };
 
         var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
@@ -177,5 +207,7 @@ public class TSKConfig
         public bool uiTranslation { get; set; }
         public bool uiCapture { get; set; }
         public int uiCaptureFlushSeconds { get; set; }
+        public bool skillBatchCapture { get; set; }
+        public int skillBatchDelayMilliseconds { get; set; }
     }
 }

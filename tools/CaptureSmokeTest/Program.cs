@@ -31,4 +31,65 @@ if (failures > 0)
 }
 
 Console.WriteLine($"PASS: {cases.Length} capture filter cases");
+
+var catalog = new SkillBatchCatalog();
+var added = catalog.ObserveUnitList(
+    "{\"result\":{\"unit_list\":[" +
+    "{\"u_unit_id\":9002,\"unit_id\":1002}," +
+    "{\"u_unit_id\":\"9001\",\"unit_id\":\"1001\"}," +
+    "{\"u_unit_id\":9002,\"unit_id\":1002}," +
+    "{\"u_unit_id\":0,\"unit_id\":9999}]}}");
+
+if (added != 2 || catalog.UnitCount != 2)
+{
+    Console.Error.WriteLine($"FAIL skill catalog parse: added={added}, total={catalog.UnitCount}");
+    return 1;
+}
+
+if (catalog.BuildRequestIds().Count != 0)
+{
+    Console.Error.WriteLine("FAIL skill catalog must not emit IDs before calibration");
+    return 1;
+}
+
+if (catalog.ObserveKnownRequestId(9001) != SkillBatchIdentifierMode.UserUnitId ||
+    !catalog.BuildRequestIds().SequenceEqual(new[] { 9001, 9002 }))
+{
+    Console.Error.WriteLine("FAIL skill catalog user-unit ID calibration");
+    return 1;
+}
+
+var masterCatalog = new SkillBatchCatalog();
+masterCatalog.ObserveUnitList(
+    "{\"result\":{\"unit_list\":[{\"u_unit_id\":8001,\"unit_id\":2002}," +
+    "{\"u_unit_id\":8002,\"unit_id\":2001}]}}");
+if (masterCatalog.ObserveKnownRequestId(2001) != SkillBatchIdentifierMode.MasterUnitId ||
+    !masterCatalog.BuildRequestIds().SequenceEqual(new[] { 2001, 2002 }))
+{
+    Console.Error.WriteLine("FAIL skill catalog master-unit ID calibration");
+    return 1;
+}
+
+var ambiguousCatalog = new SkillBatchCatalog();
+ambiguousCatalog.ObserveUnitList(
+    "{\"result\":{\"unit_list\":[{\"u_unit_id\":3001,\"unit_id\":3001}]}}");
+if (ambiguousCatalog.ObserveKnownRequestId(3001) != SkillBatchIdentifierMode.Unknown)
+{
+    Console.Error.WriteLine("FAIL skill catalog ambiguous calibration must fail closed");
+    return 1;
+}
+
+Console.WriteLine("PASS: skill batch catalog parse, dedupe, calibration, and fail-closed cases");
+
+if (!SkillBatchCatalog.HasExSkillDataResponse(
+        "{\"result\":{\"skill_data_list\":[{\"ex_skill_id\":1001}]}}") ||
+    SkillBatchCatalog.HasExSkillDataResponse("{\"result\":{\"skill_data_list\":[]}}") ||
+    SkillBatchCatalog.HasExSkillDataResponse("{\"result\":{}}") ||
+    SkillBatchCatalog.HasExSkillDataResponse("not-json"))
+{
+    Console.Error.WriteLine("FAIL skill batch response validation");
+    return 1;
+}
+
+Console.WriteLine("PASS: skill batch response validation cases");
 return 0;
