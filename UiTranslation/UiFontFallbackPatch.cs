@@ -84,10 +84,21 @@ internal static class UiFontFallbackPatch
         Apply(__instance);
     }
 
+    [HarmonyPrefix]
+    [HarmonyPatch(typeof(TMP_Text), "set_text")]
+    private static void TranslateText(ref string value)
+    {
+        if (UiTranslationService.TryTranslateRenderedText(value, out var translation))
+        {
+            value = translation;
+        }
+    }
+
     [HarmonyPostfix]
     [HarmonyPatch(typeof(TextMeshProUGUI), "OnEnable")]
     private static void UguiEnabled(TextMeshProUGUI __instance)
     {
+        TranslateCurrentText(__instance);
         Apply(__instance);
     }
 
@@ -95,7 +106,16 @@ internal static class UiFontFallbackPatch
     [HarmonyPatch(typeof(TextMeshPro), "OnEnable")]
     private static void MeshEnabled(TextMeshPro __instance)
     {
+        TranslateCurrentText(__instance);
         Apply(__instance);
+    }
+
+    private static void TranslateCurrentText(TMP_Text text)
+    {
+        if (text != null && UiTranslationService.TryTranslateRenderedText(text.text, out var translation))
+        {
+            text.text = translation;
+        }
     }
 
     private static void Apply(TMP_Text text)

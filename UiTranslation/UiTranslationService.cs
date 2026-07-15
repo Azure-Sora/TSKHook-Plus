@@ -24,6 +24,7 @@ internal static class UiTranslationService
     private static long translatedTexts;
     private static long inspectedResponses;
     private static long totalTransformMilliseconds;
+    private static long renderedTextFallbacks;
     private static int errorCount;
     private static int slowLogCount;
     private static int shutdownLogged;
@@ -163,6 +164,24 @@ internal static class UiTranslationService
         }
     }
 
+    internal static bool TryTranslateRenderedText(string source, out string translation)
+    {
+        translation = null;
+        if (!TSKConfig.TranslationEnabled || !TSKConfig.UiTranslationEnabled)
+        {
+            return false;
+        }
+
+        var snapshot = Volatile.Read(ref translations);
+        if (!UiRenderedTextTranslator.TryTranslate(source, snapshot, out translation))
+        {
+            return false;
+        }
+
+        Interlocked.Increment(ref renderedTextFallbacks);
+        return true;
+    }
+
     internal static void Shutdown()
     {
         if (Interlocked.Exchange(ref shutdownLogged, 1) != 0)
@@ -175,6 +194,7 @@ internal static class UiTranslationService
             $"text values: {Interlocked.Read(ref translatedTexts)}, " +
             $"inspected responses: {Interlocked.Read(ref inspectedResponses)}, " +
             $"transform time: {Interlocked.Read(ref totalTransformMilliseconds)} ms, " +
+            $"rendered text fallbacks: {Interlocked.Read(ref renderedTextFallbacks)}, " +
             $"TMP fonts configured: {UiFontFallbackPatch.ProcessedFontCount}, " +
             $"unreadable atlas insertions skipped: {UiFontFallbackPatch.SkippedUnreadableAtlasInsertions}.");
     }

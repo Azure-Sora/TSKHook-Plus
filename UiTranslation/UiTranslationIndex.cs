@@ -47,6 +47,19 @@ internal sealed class UiTranslationIndex
 
     internal int AmbiguousSourceHashCount { get; }
 
+    internal bool TryGetUniqueBySourceHash(string sourceHash, out string translation)
+    {
+        translation = null;
+        if (!uniqueBySourceHash.TryGetValue(sourceHash, out var entry) ||
+            string.IsNullOrWhiteSpace(entry.Translation))
+        {
+            return false;
+        }
+
+        translation = entry.Translation;
+        return true;
+    }
+
     internal bool TryGet(string key, string sourceHash, out string translation, out bool usedHashFallback)
     {
         usedHashFallback = false;
@@ -60,13 +73,11 @@ internal sealed class UiTranslationIndex
             return true;
         }
 
-        if (!uniqueBySourceHash.TryGetValue(sourceHash, out var fallbackEntry) ||
-            string.IsNullOrWhiteSpace(fallbackEntry.Translation))
+        if (!TryGetUniqueBySourceHash(sourceHash, out translation))
         {
             return false;
         }
 
-        translation = fallbackEntry.Translation;
         usedHashFallback = true;
         return true;
     }

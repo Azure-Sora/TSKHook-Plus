@@ -55,6 +55,23 @@ using (var document = JsonDocument.Parse(ambiguitySafeResult))
         "ambiguous same-source text under an unknown identity must remain Japanese", failures);
 }
 
+var renderedSource = "[アビストリガー]ネーゼマイン《悪戯》";
+var renderedHash = UiJsonTranslator.Sha256(renderedSource);
+var renderedTranslations = new Dictionary<string, UiRuntimeTranslation>(StringComparer.Ordinal)
+{
+    ["unit:exclusive_unit_id=1041005:exclusive_unit_name"] =
+        new UiRuntimeTranslation(renderedHash, "[深渊触发器]妮泽玛茵《恶戏》"),
+    ["reward:layout=singleline:reward_id=1041005:reward_type=2:reward_name"] =
+        new UiRuntimeTranslation(renderedHash, "[深渊触发器]妮泽玛茵《恶戏》")
+};
+Assert(UiRenderedTextTranslator.TryTranslate(renderedSource,
+        new UiTranslationIndex(renderedTranslations), out var renderedTranslation) &&
+       renderedTranslation == "[深渊触发器]妮泽玛茵《恶戏》",
+    "final TMP text should use the unique source-hash translation", failures);
+Assert(!UiRenderedTextTranslator.TryTranslate(source,
+        new UiTranslationIndex(ambiguousTranslations), out _),
+    "final TMP text must reject an ambiguous source hash", failures);
+
 var badHash = new Dictionary<string, UiRuntimeTranslation>(StringComparer.Ordinal)
 {
     [key100] = new UiRuntimeTranslation("wrong-hash", "错误译文")
@@ -80,7 +97,8 @@ Assert(!UiJsonTranslator.TryTranslate("HomeData", userJson, new UiTranslationInd
 if (failures.Count == 0)
 {
     RunStructuredLookupBenchmark();
-    Console.WriteLine("PASS: 12 runtime translation assertions");
+    RunRenderedLookupBenchmark();
+    Console.WriteLine("PASS: 14 runtime translation assertions");
     return 0;
 }
 
@@ -105,6 +123,31 @@ static void Assert(bool condition, string message, ICollection<string> failures)
     {
         failures.Add(message);
     }
+}
+
+static void RunRenderedLookupBenchmark()
+{
+    const int lookupCount = 10000;
+    var source = "[アビストリガー]ネーゼマイン《悪戯》";
+    var hash = UiJsonTranslator.Sha256(source);
+    var index = new UiTranslationIndex(new Dictionary<string, UiRuntimeTranslation>(StringComparer.Ordinal)
+    {
+        ["unit:exclusive_unit_id=1041005:exclusive_unit_name"] =
+            new UiRuntimeTranslation(hash, "[深渊触发器]妮泽玛茵《恶戏》")
+    });
+
+    var hits = 0;
+    var stopwatch = Stopwatch.StartNew();
+    for (var lookup = 0; lookup < lookupCount; lookup++)
+    {
+        if (UiRenderedTextTranslator.TryTranslate(source, index, out _))
+        {
+            hits++;
+        }
+    }
+    stopwatch.Stop();
+    Console.WriteLine(
+        $"BENCHMARK rendered-fallback: {lookupCount} lookups, {hits} hits, {stopwatch.ElapsedMilliseconds} ms");
 }
 
 static void RunStructuredLookupBenchmark()
