@@ -17,5 +17,8 @@ findings.md
 progress.md
 M0_TEST_INSTRUCTIONS.md
 reports/
+
+# Local AI assistant settings
+**/.claude/settings.local.json
 translations/batches_bak
 translations/ui/_batches

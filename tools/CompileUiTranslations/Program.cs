@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using TSKHook;
 
 if (args.Contains("--self-test", StringComparer.Ordinal))
 {
@@ -56,7 +57,7 @@ foreach (var line in File.ReadLines(input))
         continue;
     }
 
-    var descriptor = KeyBuilder.Build(record);
+    var descriptor = BuildKey(record);
     if (!groups.TryGetValue(descriptor.Key, out var sourceGroups))
     {
         sourceGroups = new Dictionary<string, Aggregate>(StringComparer.Ordinal);
@@ -156,19 +157,19 @@ static int RunSelfTest()
     ApplyPreviousTranslation(changed, previous);
     ApplyPreviousTranslation(fresh, previous);
 
-    var missionA = KeyBuilder.Build(TestRecord("MissionList",
+    var missionA = BuildKey(TestRecord("MissionList",
         "$.result.special_mission_tab.mission_group_list[].limit_date_text", "あと48日",
         ("mission_group_id", "131"), ("mission_type", "5")));
-    var missionB = KeyBuilder.Build(TestRecord("MissionList",
+    var missionB = BuildKey(TestRecord("MissionList",
         "$.result.special_mission_tab.mission_group_list[].limit_date_text", "無期限",
         ("mission_group_id", "132"), ("mission_type", "5")));
-    var freeItem = KeyBuilder.Build(TestRecord("ShopList", "$.result.cost_mtrl_list[].item_name", "無料",
+    var freeItem = BuildKey(TestRecord("ShopList", "$.result.cost_mtrl_list[].item_name", "無料",
         ("item_id", "0"), ("item_type", "0"), ("cost_type", "5")));
-    var platformItem = KeyBuilder.Build(TestRecord("ShopList", "$.result.cost_mtrl_list[].item_name", "プラットフォーム通貨",
+    var platformItem = BuildKey(TestRecord("ShopList", "$.result.cost_mtrl_list[].item_name", "プラットフォーム通貨",
         ("item_id", "0"), ("item_type", "0"), ("cost_type", "3")));
-    var rewardSingle = KeyBuilder.Build(TestRecord("ShopList", "$.result.product_detail_list[].reward_name",
+    var rewardSingle = BuildKey(TestRecord("ShopList", "$.result.product_detail_list[].reward_name",
         "[称号]角色", ("reward_id", "1001"), ("reward_type", "2")));
-    var rewardMultiline = KeyBuilder.Build(TestRecord("GetGroupItemDetail", "$.result.item_list[].reward_name",
+    var rewardMultiline = BuildKey(TestRecord("GetGroupItemDetail", "$.result.item_list[].reward_name",
         "[称号]\n角色", ("reward_id", "1001"), ("reward_type", "2")));
 
     var passed = same.Translation == "译文A" && same.Status == "reviewed" &&
@@ -195,6 +196,10 @@ static CaptureRecord TestRecord(string apiName, string path, string source,
     Context = context.ToDictionary(pair => pair.Name, pair => pair.Value, StringComparer.Ordinal),
     FirstSeenUtc = "2026-01-01T00:00:00Z"
 };
+
+static UiTextKeyDescriptor BuildKey(CaptureRecord record) => UiTextKeyBuilder.Build(
+    record.ApiName, record.Path, record.Source, record.SourceHash,
+    record.Context ?? new Dictionary<string, string>(StringComparer.Ordinal));
 
 static Dictionary<string, SourceEntry> LoadPreviousEntries(string path, JsonSerializerOptions options)
 {
@@ -251,202 +256,16 @@ static void WriteJsonLines(string path, IEnumerable<SourceEntry> records, JsonSe
     }
 }
 
-internal static class KeyBuilder
-{
-    private static readonly string[] GenericIdentityFields =
-    {
-        "campaign_id", "category_id", "character_id", "event_id", "group_id", "id", "quest_id",
-        "reward_id", "reward_type", "shop_id", "sister_unit_id", "stage_id", "status_effect_id", "unit_id"
-    };
-
-    internal static KeyDescriptor Build(CaptureRecord record)
-    {
-        var context = record.Context ?? new Dictionary<string, string>(StringComparer.Ordinal);
-        var field = record.Path[(record.Path.LastIndexOf('.') + 1)..].Replace("[]", "", StringComparison.Ordinal);
-
-        if (field.StartsWith("exclusive_unit_", StringComparison.OrdinalIgnoreCase) &&
-            context.ContainsKey("exclusive_unit_id"))
-        {
-            return Create("unit", field, context, ("exclusive_unit_id", true));
-        }
-
-        if (field is "unit_name" or "character_name" or "character_name_kana" or "full_name" &&
-            context.ContainsKey("unit_id"))
-        {
-            return Create("unit", field, context, ("unit_id", true), ("character_id", false));
-        }
-
-        if (context.TryGetValue("item_id", out var itemId) &&
-            (field.Contains("item", StringComparison.OrdinalIgnoreCase) || field == "detail"))
-        {
-            return itemId == "0"
-                ? Create("item", field, context, ("item_type", false), ("item_id", true), ("cost_type", true))
-                : Create("item", field, context, ("item_type", false), ("item_id", true));
-        }
-
-        if (context.ContainsKey("reward_id") &&
-            (field.Contains("reward", StringComparison.OrdinalIgnoreCase) ||
-             record.Path.Contains("reward_list", StringComparison.OrdinalIgnoreCase) ||
-             record.Path.Contains("product_detail_list", StringComparison.OrdinalIgnoreCase)))
-        {
-            return CreateReward(field, context, record.Source);
-        }
-
-        if (record.Path.Contains("sister_unit_list", StringComparison.OrdinalIgnoreCase) &&
-            record.Path.Contains("skill", StringComparison.OrdinalIgnoreCase))
-        {
-            return CreateSisterSkill(field, record.Path, context);
-        }
-
-        if (context.TryGetValue("equip_id", out var equipId) &&
-            (field.Contains("equip", StringComparison.OrdinalIgnoreCase) || record.Path.Contains("equip", StringComparison.OrdinalIgnoreCase)))
-        {
-            var includeSkill = context.ContainsKey("skill_id") &&
-                               (record.Path.Contains("skill", StringComparison.OrdinalIgnoreCase) ||
-                                record.Path.Contains("enchant", StringComparison.OrdinalIgnoreCase));
-            return includeSkill
-                ? Create("equip", field, context, ("equip_id", true), ("skill_id", true),
-                    ("frame_no", false), ("effect_type", false), ("lv", false))
-                : Create("equip", field, context, ("equip_id", true));
-        }
-
-        if (context.ContainsKey("skill_id") && record.Path.Contains("skill", StringComparison.OrdinalIgnoreCase))
-        {
-            return Create("skill", field, context,
-                ("skill_data_type", false), ("skill_id", true), ("lv", false), ("unit_id", false));
-        }
-
-        if (context.ContainsKey("mission_id") || record.Path.Contains("mission", StringComparison.OrdinalIgnoreCase))
-        {
-            return Create("mission", field, context, ("mission_type", false), ("mission_group_id", false),
-                ("mission_id", false), ("id", false));
-        }
-
-        if (context.ContainsKey("product_id") || record.Path.Contains("product", StringComparison.OrdinalIgnoreCase))
-        {
-            return Create("shop", field, context, ("shop_id", false), ("product_id", false), ("id", false));
-        }
-
-        if (context.ContainsKey("unit_id") &&
-            (record.Path.Contains("unit", StringComparison.OrdinalIgnoreCase) ||
-             record.Path.Contains("character", StringComparison.OrdinalIgnoreCase)))
-        {
-            return Create("unit", field, context, ("unit_id", true), ("character_id", false));
-        }
-
-        var identity = new SortedDictionary<string, string>(StringComparer.Ordinal);
-        foreach (var name in GenericIdentityFields)
-        {
-            if (context.TryGetValue(name, out var value))
-            {
-                identity[name] = value;
-            }
-        }
-
-        if (identity.Count == 0)
-        {
-            identity["source_hash"] = record.SourceHash[..12];
-        }
-
-        return FromIdentity("misc", field, identity, record.ApiName);
-    }
-
-    private static KeyDescriptor CreateSisterSkill(string field, string path,
-        IReadOnlyDictionary<string, string> context)
-    {
-        var identity = new SortedDictionary<string, string>(StringComparer.Ordinal);
-        foreach (var name in new[]
-                 {
-                     "sister_unit_id", "active_skill_id", "support_skill_id", "status_effect_id", "skill_type", "lv"
-                 })
-        {
-            if (context.TryGetValue(name, out var value))
-            {
-                identity[name] = value;
-            }
-        }
-
-        identity["skill_kind"] = path.Contains("extra_support_skill_data", StringComparison.OrdinalIgnoreCase)
-            ? "extra_support"
-            : path.Contains("active_skill_data", StringComparison.OrdinalIgnoreCase)
-                ? "active"
-                : "support";
-        return FromIdentity("skill", field, identity, null);
-    }
-
-    private static KeyDescriptor CreateReward(string field, IReadOnlyDictionary<string, string> context,
-        string source)
-    {
-        var identity = new SortedDictionary<string, string>(StringComparer.Ordinal);
-        foreach (var name in new[] { "reward_type", "reward_id" })
-        {
-            if (context.TryGetValue(name, out var value))
-            {
-                identity[name] = value;
-            }
-        }
-
-        if (!identity.ContainsKey("reward_id"))
-        {
-            identity["reward_id"] = "missing";
-        }
-
-        if (field == "reward_name")
-        {
-            identity["layout"] = source.Contains('\n') ? "multiline" : "singleline";
-        }
-
-        return FromIdentity("reward", field, identity, null);
-    }
-
-    private static KeyDescriptor Create(string category, string field, IReadOnlyDictionary<string, string> context,
-        params (string Name, bool Required)[] fields)
-    {
-        var identity = new SortedDictionary<string, string>(StringComparer.Ordinal);
-        foreach (var fieldSpec in fields)
-        {
-            if (context.TryGetValue(fieldSpec.Name, out var value))
-            {
-                identity[fieldSpec.Name] = value;
-            }
-            else if (fieldSpec.Required)
-            {
-                identity[fieldSpec.Name] = "missing";
-            }
-        }
-
-        return FromIdentity(category, field, identity, null);
-    }
-
-    private static KeyDescriptor FromIdentity(string category, string field,
-        SortedDictionary<string, string> identity, string scope)
-    {
-        var key = new StringBuilder(category).Append(':');
-        if (!string.IsNullOrEmpty(scope))
-        {
-            key.Append(Escape(scope)).Append(':');
-        }
-        foreach (var pair in identity)
-        {
-            key.Append(pair.Key).Append('=').Append(Escape(pair.Value)).Append(':');
-        }
-        key.Append(field);
-        return new KeyDescriptor(key.ToString(), category, field, identity);
-    }
-
-    private static string Escape(string value) => Uri.EscapeDataString(value ?? string.Empty);
-}
-
 internal sealed class Aggregate
 {
-    internal Aggregate(CaptureRecord record, KeyDescriptor descriptor)
+    internal Aggregate(CaptureRecord record, UiTextKeyDescriptor descriptor)
     {
         Record = record;
         Descriptor = descriptor;
     }
 
     internal CaptureRecord Record { get; }
-    internal KeyDescriptor Descriptor { get; }
+    internal UiTextKeyDescriptor Descriptor { get; }
     internal int Occurrences { get; set; }
     internal SortedSet<string> Origins { get; } = new(StringComparer.Ordinal);
 
@@ -466,9 +285,6 @@ internal sealed class Aggregate
         FirstSeenUtc = Record.FirstSeenUtc
     };
 }
-
-internal sealed record KeyDescriptor(string Key, string Category, string Field,
-    SortedDictionary<string, string> Identity);
 
 internal sealed class CaptureRecord
 {

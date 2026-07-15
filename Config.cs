@@ -12,6 +12,7 @@ public class TSKConfig
     public static int width;
     public static int height;
     public static float zoom;
+    public static bool UiTranslationEnabled;
     public static bool UiCaptureEnabled;
     public static int UiCaptureFlushSeconds;
 
@@ -95,6 +96,16 @@ public class TSKConfig
                 needWrite = true;
             }
 
+            if (config.TryGetProperty("uiTranslation", out var uiTranslationValue))
+            {
+                UiTranslationEnabled = uiTranslationValue.GetBoolean();
+            }
+            else
+            {
+                UiTranslationEnabled = true;
+                needWrite = true;
+            }
+
             if (config.TryGetProperty("uiCaptureFlushSeconds", out var uiCaptureFlushSecondsValue))
             {
                 UiCaptureFlushSeconds = System.Math.Max(1, uiCaptureFlushSecondsValue.GetInt32());
@@ -106,13 +117,14 @@ public class TSKConfig
             }
 
             if (needWrite) WriteJsonFile(Speed, FPS, TranslationEnabled, width, height, zoom,
-                UiCaptureEnabled, UiCaptureFlushSeconds);
+                UiTranslationEnabled, UiCaptureEnabled, UiCaptureFlushSeconds);
 
             Plugin.Global.Log.LogInfo("Current setting:");
             Plugin.Global.Log.LogInfo("Game speed(each step): " + Speed);
             Plugin.Global.Log.LogInfo("FPS: " + FPS);
             Plugin.Global.Log.LogInfo("Translation: " + (TranslationEnabled ? "Enabled" : "Disabled"));
             Plugin.Global.Log.LogInfo("Zoom ratio: " + zoom);
+            Plugin.Global.Log.LogInfo("UI translation: " + (UiTranslationEnabled ? "Enabled" : "Disabled"));
             Plugin.Global.Log.LogInfo("UI capture: " + (UiCaptureEnabled ? "Enabled" : "Disabled"));
         }
         else
@@ -125,16 +137,17 @@ public class TSKConfig
             width = 1280;
             height = 720;
             zoom = 1.0f;
+            UiTranslationEnabled = true;
             UiCaptureEnabled = true;
             UiCaptureFlushSeconds = 5;
 
             // Create default JSON file
-            WriteJsonFile(0.5, 60, true, width, height, zoom, true, 5);
+            WriteJsonFile(0.5, 60, true, width, height, zoom, true, true, 5);
         }
     }
 
     public static void WriteJsonFile(double speed, int fps, bool enabled, int w, int h, float z,
-        bool uiCapture, int uiCaptureFlushSeconds)
+        bool uiTranslation, bool uiCapture, int uiCaptureFlushSeconds)
     {
         var config = new config
         {
@@ -144,6 +157,7 @@ public class TSKConfig
             width = w,
             height = h,
             zoom = z,
+            uiTranslation = uiTranslation,
             uiCapture = uiCapture,
             uiCaptureFlushSeconds = uiCaptureFlushSeconds
         };
@@ -160,6 +174,7 @@ public class TSKConfig
         public int width { get; set; }
         public int height { get; set; }
         public float zoom { get; set; }
+        public bool uiTranslation { get; set; }
         public bool uiCapture { get; set; }
         public int uiCaptureFlushSeconds { get; set; }
     }

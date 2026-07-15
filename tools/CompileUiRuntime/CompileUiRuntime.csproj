@@ -5,7 +5,4 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
   </PropertyGroup>
-  <ItemGroup>
-    <Compile Include="..\..\UiTranslation\UiTextKeyBuilder.cs" Link="UiTextKeyBuilder.cs" />
-  </ItemGroup>
 </Project>

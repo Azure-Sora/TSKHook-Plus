@@ -45,3 +45,29 @@ dotnet run --project .\tools\CompileUiTranslations\CompileUiTranslations.csproj 
 ```
 
 编译器按 `key + sourceHash` 保留已有译文和状态；相同键的原文变化时保留旧译文并标记为 `stale`。任何 `ui_conflicts.jsonl` 非空的情况都应先修复键设计，再进入翻译。
+
+## 编译运行时翻译资产
+
+分类文件完成初译后运行：
+
+```powershell
+dotnet run --project .\tools\CompileUiRuntime\CompileUiRuntime.csproj -c Release -- `
+  .\translations\ui\source\ui_source.jsonl `
+  .\translations\ui\source\by_category `
+  .\translations\ui\runtime\ui_translations.jsonl
+```
+
+运行时编译器以 `ui_source.jsonl` 的 key 和 sourceHash 为权威数据，只从分类文件读取 `translation/status`。只有非空且状态为 `translated/reviewed/verified` 的条目会进入运行时资产；`new/stale/conflict` 自动跳过。
+
+`translations/ui/runtime/compile_summary.json` 会记录未翻译数量、受保护原文差异以及富文本、占位符、数字和换行警告。富文本或占位符警告必须修复后再发布；数字和换行警告应人工判断。
+
+Release 构建会把资产复制为：
+
+```text
+bin/Release/net6.0/
+  TSKHook.dll
+  TSKHook/
+    ui_translations.jsonl
+```
+
+安装时必须同时复制 DLL 和 `TSKHook/ui_translations.jsonl`。游戏内按 F10 可重新加载本地 UI 译文，按 F11 可切换总翻译开关；配置项 `uiTranslation` 可单独控制 UI 翻译。

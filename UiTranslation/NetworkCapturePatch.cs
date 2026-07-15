@@ -10,6 +10,8 @@ internal static class NetworkCapturePatch
     [HarmonyPostfix]
     private static void CaptureFormattedResponse(ApiName apiName, ref string __result)
     {
-        UiTextCaptureService.Observe(apiName.ToString(), __result);
+        var apiNameText = apiName.ToString();
+        UiTextCaptureService.Observe(apiNameText, __result);
+        __result = UiTranslationService.TranslateResponse(apiNameText, __result);
     }
 }

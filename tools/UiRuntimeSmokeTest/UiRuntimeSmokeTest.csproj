@@ -6,6 +6,9 @@
     <Nullable>disable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\..\UiTranslation\CaptureTextFilter.cs" Link="CaptureTextFilter.cs" />
+    <Compile Include="..\..\UiTranslation\UiJsonContext.cs" Link="UiJsonContext.cs" />
+    <Compile Include="..\..\UiTranslation\UiJsonTranslator.cs" Link="UiJsonTranslator.cs" />
     <Compile Include="..\..\UiTranslation\UiTextKeyBuilder.cs" Link="UiTextKeyBuilder.cs" />
   </ItemGroup>
 </Project>

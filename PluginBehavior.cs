@@ -70,8 +70,9 @@ public class PluginBehavior : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.F10))
         {
             Translation.chapterDicts = new();
+            UiTranslationService.Reload();
             Plugin.Global.Log.LogInfo("[Translator] cache cleared.");
-            Notification.Popup("Translation", "Translation cache cleared.");
+            Notification.Popup("Translation", "Translation cache cleared and UI translations reloaded.");
         }
 
         if (Input.GetKeyDown(KeyCode.F11))
@@ -94,6 +95,8 @@ public class PluginBehavior : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.F1))
         {
             TSKConfig.Read();
+            UiTranslationService.Reload();
+            Patch.EnsureTranslationFontLoaded();
             Window.Init();
             Plugin.Global.Log.LogInfo("[Config] reloaded.");
         }
@@ -129,10 +132,12 @@ public class PluginBehavior : MonoBehaviour
     private void OnApplicationQuit()
     {
         UiTextCaptureService.Shutdown();
+        UiTranslationService.Shutdown();
     }
 
     private void OnDestroy()
     {
         UiTextCaptureService.Shutdown();
+        UiTranslationService.Shutdown();
     }
 }
