@@ -14,31 +14,54 @@ var translations = new Dictionary<string, UiRuntimeTranslation>(StringComparer.O
 {
     [key100] = new UiRuntimeTranslation(UiJsonTranslator.Sha256(source), "对全体敌人造成伤害")
 };
+var translationIndex = new UiTranslationIndex(translations);
 
 var json = "{\"result\":{\"skill_list\":[" +
            "{\"skill_id\":100,\"skill_data_type\":1,\"lv\":1,\"skill_detail\":\"敵全体にダメージ\",\"power\":120}," +
            "{\"skill_id\":200,\"skill_data_type\":1,\"lv\":1,\"skill_detail\":\"敵全体にダメージ\",\"power\":130}" +
            "]}}";
-Assert(UiJsonTranslator.TryTranslate("UnitList", json, translations, out var translated, out var count),
+Assert(UiJsonTranslator.TryTranslate("UnitList", json, translationIndex,
+        out var translated, out var count, out var fallbackCount),
     "structured response should report a translation", failures);
-Assert(count == 1, "only the matching skill identity should be translated", failures);
+Assert(count == 2, "exact and unambiguous source-hash fallback should both translate", failures);
+Assert(fallbackCount == 1, "one skill should use the source-hash fallback", failures);
 using (var document = JsonDocument.Parse(translated))
 {
     var list = document.RootElement.GetProperty("result").GetProperty("skill_list");
     Assert(list[0].GetProperty("skill_detail").GetString() == "对全体敌人造成伤害",
         "skill 100 translation", failures);
-    Assert(list[1].GetProperty("skill_detail").GetString() == source,
-        "same source under skill 200 must remain Japanese", failures);
+    Assert(list[1].GetProperty("skill_detail").GetString() == "对全体敌人造成伤害",
+        "same unambiguous source under another skill identity should use the fallback", failures);
     Assert(list[0].GetProperty("power").GetInt32() == 120 && list[1].GetProperty("power").GetInt32() == 130,
         "non-string JSON values must remain unchanged", failures);
+}
+
+var context300 = Context(("skill_id", "300"), ("skill_data_type", "1"), ("lv", "1"));
+var ambiguousTranslations = new Dictionary<string, UiRuntimeTranslation>(StringComparer.Ordinal)
+{
+    [key100] = new UiRuntimeTranslation(UiJsonTranslator.Sha256(source), "对全体敌人造成伤害"),
+    [Key("UnitList", path, source, context300)] =
+        new UiRuntimeTranslation(UiJsonTranslator.Sha256(source), "对所有敌人造成伤害（另一语境）")
+};
+Assert(UiJsonTranslator.TryTranslate("UnitList", json, new UiTranslationIndex(ambiguousTranslations),
+        out var ambiguitySafeResult, out var ambiguitySafeCount, out var ambiguityFallbackCount),
+    "an exact translation should still work when the source hash is ambiguous", failures);
+using (var document = JsonDocument.Parse(ambiguitySafeResult))
+{
+    var list = document.RootElement.GetProperty("result").GetProperty("skill_list");
+    Assert(ambiguitySafeCount == 1 && ambiguityFallbackCount == 0,
+        "ambiguous hashes must not use the fallback", failures);
+    Assert(list[1].GetProperty("skill_detail").GetString() == source,
+        "ambiguous same-source text under an unknown identity must remain Japanese", failures);
 }
 
 var badHash = new Dictionary<string, UiRuntimeTranslation>(StringComparer.Ordinal)
 {
     [key100] = new UiRuntimeTranslation("wrong-hash", "错误译文")
 };
-Assert(!UiJsonTranslator.TryTranslate("UnitList", json, badHash, out var unchanged, out var badHashCount) &&
-       unchanged == json && badHashCount == 0,
+Assert(!UiJsonTranslator.TryTranslate("UnitList", json, new UiTranslationIndex(badHash),
+        out var unchanged, out var badHashCount, out var badHashFallbackCount) &&
+       unchanged == json && badHashCount == 0 && badHashFallbackCount == 0,
     "source hash mismatch must fail closed", failures);
 
 var userSource = "プレイヤー名";
@@ -49,14 +72,15 @@ var userTranslations = new Dictionary<string, UiRuntimeTranslation>(StringCompar
     [userKey] = new UiRuntimeTranslation(UiJsonTranslator.Sha256(userSource), "玩家名")
 };
 var userJson = "{\"user_data\":{\"user_nm\":\"プレイヤー名\"}}";
-Assert(!UiJsonTranslator.TryTranslate("HomeData", userJson, userTranslations,
-        out var userUnchanged, out var userCount) && userUnchanged == userJson && userCount == 0,
+Assert(!UiJsonTranslator.TryTranslate("HomeData", userJson, new UiTranslationIndex(userTranslations),
+        out var userUnchanged, out var userCount, out var userFallbackCount) &&
+       userUnchanged == userJson && userCount == 0 && userFallbackCount == 0,
     "sensitive player field must never be replaced", failures);
 
 if (failures.Count == 0)
 {
     RunStructuredLookupBenchmark();
-    Console.WriteLine("PASS: 8 runtime translation assertions");
+    Console.WriteLine("PASS: 12 runtime translation assertions");
     return 0;
 }
 
@@ -105,8 +129,10 @@ static void RunStructuredLookupBenchmark()
     json.Append("]}}");
 
     var payload = json.ToString();
+    var translationIndex = new UiTranslationIndex(translations);
     var stopwatch = Stopwatch.StartNew();
-    UiJsonTranslator.TryTranslate("UnitList", payload, translations, out _, out var replacements);
+    UiJsonTranslator.TryTranslate("UnitList", payload, translationIndex,
+        out _, out var replacements, out _);
     stopwatch.Stop();
     Console.WriteLine(
         $"BENCHMARK structured-only: {rowCount} rows, {replacements} replacements, {stopwatch.ElapsedMilliseconds} ms");

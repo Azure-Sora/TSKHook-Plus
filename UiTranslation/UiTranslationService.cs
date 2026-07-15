@@ -18,7 +18,7 @@ internal static class UiTranslationService
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    private static Dictionary<string, UiRuntimeTranslation> translations = new(StringComparer.Ordinal);
+    private static UiTranslationIndex translations = UiTranslationIndex.Empty;
     private static string assetPath;
     private static long translatedResponses;
     private static long translatedTexts;
@@ -48,7 +48,7 @@ internal static class UiTranslationService
             {
                 if (!File.Exists(assetPath))
                 {
-                    Volatile.Write(ref translations, loaded);
+                    Volatile.Write(ref translations, UiTranslationIndex.Empty);
                     Plugin.Global.Log.LogWarning($"[UI Translation] Runtime asset not found: {assetPath}");
                     return;
                 }
@@ -79,10 +79,13 @@ internal static class UiTranslationService
                     }
                 }
 
-                Volatile.Write(ref translations, loaded);
+                var index = new UiTranslationIndex(loaded);
+                Volatile.Write(ref translations, index);
                 LoggedApis.Clear();
                 Plugin.Global.Log.LogInfo(
-                    $"[UI Translation] Loaded {loaded.Count} entries from {assetPath}. Invalid rows: {invalidRows}.");
+                    $"[UI Translation] Loaded {index.ExactCount} entries from {assetPath}. " +
+                    $"Safe source-hash fallbacks: {index.UniqueSourceHashCount}; " +
+                    $"ambiguous hashes excluded: {index.AmbiguousSourceHashCount}; invalid rows: {invalidRows}.");
             }
             catch (Exception exception)
             {
@@ -106,7 +109,7 @@ internal static class UiTranslationService
         }
 
         var snapshot = Volatile.Read(ref translations);
-        if (snapshot.Count == 0)
+        if (snapshot.ExactCount == 0)
         {
             return formattedResponse;
         }
@@ -115,10 +118,11 @@ internal static class UiTranslationService
         {
             var stopwatch = Stopwatch.StartNew();
             var replacements = 0;
+            var hashFallbacks = 0;
             try
             {
                 if (!UiJsonTranslator.TryTranslate(apiName, formattedResponse, snapshot,
-                        out var result, out replacements))
+                        out var result, out replacements, out hashFallbacks))
                 {
                     return formattedResponse;
                 }
@@ -128,7 +132,8 @@ internal static class UiTranslationService
                 if (LoggedApis.TryAdd(apiName, 0))
                 {
                     Plugin.Global.Log.LogInfo(
-                        $"[UI Translation] {apiName}: replaced {replacements} text values (first translated response). ");
+                        $"[UI Translation] {apiName}: replaced {replacements} text values " +
+                        $"({hashFallbacks} by safe source-hash fallback; first translated response). ");
                 }
                 return result;
             }
@@ -141,7 +146,8 @@ internal static class UiTranslationService
                 {
                     Plugin.Global.Log.LogInfo(
                         $"[UI Translation Perf] {apiName}: {formattedResponse.Length} chars, " +
-                        $"{replacements} replacements, {stopwatch.ElapsedMilliseconds} ms.");
+                        $"{replacements} replacements ({hashFallbacks} hash fallbacks), " +
+                        $"{stopwatch.ElapsedMilliseconds} ms.");
                 }
             }
         }

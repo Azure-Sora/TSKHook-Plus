@@ -10,12 +10,13 @@ namespace TSKHook;
 internal static class UiJsonTranslator
 {
     internal static bool TryTranslate(string apiName, string json,
-        IReadOnlyDictionary<string, UiRuntimeTranslation> translations,
-        out string translatedJson, out int replacementCount)
+        UiTranslationIndex translations,
+        out string translatedJson, out int replacementCount, out int hashFallbackCount)
     {
         translatedJson = json;
         replacementCount = 0;
-        if (string.IsNullOrWhiteSpace(json) || translations == null || translations.Count == 0)
+        hashFallbackCount = 0;
+        if (string.IsNullOrWhiteSpace(json) || translations == null || translations.ExactCount == 0)
         {
             return false;
         }
@@ -26,7 +27,7 @@ internal static class UiJsonTranslator
         {
             Rewrite(apiName, "$", document.RootElement,
                 new Dictionary<string, string>(StringComparer.Ordinal), translations, writer,
-                ref replacementCount);
+                ref replacementCount, ref hashFallbackCount);
         }
 
         if (replacementCount == 0)
@@ -40,8 +41,8 @@ internal static class UiJsonTranslator
 
     private static void Rewrite(string apiName, string path, JsonElement element,
         IReadOnlyDictionary<string, string> inheritedContext,
-        IReadOnlyDictionary<string, UiRuntimeTranslation> translations,
-        Utf8JsonWriter writer, ref int replacementCount)
+        UiTranslationIndex translations,
+        Utf8JsonWriter writer, ref int replacementCount, ref int hashFallbackCount)
     {
         switch (element.ValueKind)
         {
@@ -52,7 +53,7 @@ internal static class UiJsonTranslator
                 {
                     writer.WritePropertyName(property.Name);
                     Rewrite(apiName, path + "." + property.Name, property.Value, objectContext,
-                        translations, writer, ref replacementCount);
+                        translations, writer, ref replacementCount, ref hashFallbackCount);
                 }
                 writer.WriteEndObject();
                 break;
@@ -62,7 +63,7 @@ internal static class UiJsonTranslator
                 foreach (var item in element.EnumerateArray())
                 {
                     Rewrite(apiName, path + "[]", item, inheritedContext,
-                        translations, writer, ref replacementCount);
+                        translations, writer, ref replacementCount, ref hashFallbackCount);
                 }
                 writer.WriteEndArray();
                 break;
@@ -70,10 +71,14 @@ internal static class UiJsonTranslator
             case JsonValueKind.String:
                 var source = element.GetString();
                 if (!CaptureTextFilter.IsSensitivePath(path) && TryGetTranslation(apiName, path, source,
-                        inheritedContext, translations, out var translation))
+                        inheritedContext, translations, out var translation, out var usedHashFallback))
                 {
                     writer.WriteStringValue(translation);
                     replacementCount++;
+                    if (usedHashFallback)
+                    {
+                        hashFallbackCount++;
+                    }
                 }
                 else
                 {
@@ -89,10 +94,11 @@ internal static class UiJsonTranslator
 
     private static bool TryGetTranslation(string apiName, string path, string source,
         IReadOnlyDictionary<string, string> context,
-        IReadOnlyDictionary<string, UiRuntimeTranslation> translations,
-        out string translation)
+        UiTranslationIndex translations,
+        out string translation, out bool usedHashFallback)
     {
         translation = null;
+        usedHashFallback = false;
         if (string.IsNullOrEmpty(source))
         {
             return false;
@@ -100,15 +106,7 @@ internal static class UiJsonTranslator
 
         var sourceHash = Sha256(source);
         var descriptor = UiTextKeyBuilder.Build(apiName, path, source, sourceHash, context);
-        if (!translations.TryGetValue(descriptor.Key, out var entry) ||
-            !string.Equals(entry.SourceHash, sourceHash, StringComparison.Ordinal) ||
-            string.IsNullOrWhiteSpace(entry.Translation))
-        {
-            return false;
-        }
-
-        translation = entry.Translation;
-        return true;
+        return translations.TryGet(descriptor.Key, sourceHash, out translation, out usedHashFallback);
     }
 
     internal static string Sha256(string value)
