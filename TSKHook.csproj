@@ -24,6 +24,12 @@
     <None Include="translations\ui\runtime\ui_translations.jsonl"
           CopyToOutputDirectory="PreserveNewest"
           TargetPath="TSKHook\ui_translations.jsonl" />
+    <None Include="translations\ui\images\ui_sprite_overrides.json"
+          CopyToOutputDirectory="PreserveNewest"
+          TargetPath="TSKHook\ui_sprite_overrides.json" />
+    <None Include="translations\ui\images\files\**\*"
+          CopyToOutputDirectory="PreserveNewest"
+          TargetPath="TSKHook\ui_textures\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
   <PropertyGroup>

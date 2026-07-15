@@ -25,10 +25,38 @@ foreach (var test in cases)
     }
 }
 
+var spriteRule = new UiSpriteOverrideRule
+{
+    Id = "footer-quest",
+    SpriteName = "btn_quest",
+    TextureName = "CommonPack",
+    Width = 196,
+    Height = 64,
+    ObjectPathSuffix = "FooterRoot\\FooterView(Clone)\\Quest",
+    ReplacementFile = "ui_textures/btn_quest.png"
+};
+if (!UiSpriteOverrideMatcher.Matches(spriteRule, "btn_quest", "CommonPack", 196, 64,
+        "Controller/HeaderFooterCanvas/FooterRoot/FooterView(Clone)/Quest"))
+{
+    Console.Error.WriteLine("FAIL sprite-override-exact-match");
+    failures++;
+}
+
+if (UiSpriteOverrideMatcher.Matches(spriteRule, "btn_quest", "CommonPack", 195, 64,
+        "Controller/HeaderFooterCanvas/FooterRoot/FooterView(Clone)/Quest") ||
+    UiSpriteOverrideMatcher.Matches(spriteRule, "btn_home", "CommonPack", 196, 64,
+        "Controller/HeaderFooterCanvas/FooterRoot/FooterView(Clone)/Quest") ||
+    UiSpriteOverrideMatcher.Matches(spriteRule, "btn_quest", "OtherPack", 196, 64,
+        "Controller/HeaderFooterCanvas/FooterRoot/FooterView(Clone)/Quest"))
+{
+    Console.Error.WriteLine("FAIL sprite-override-fail-closed");
+    failures++;
+}
+
 if (failures > 0)
 {
     return 1;
 }
 
-Console.WriteLine($"PASS: {cases.Length} capture filter cases");
+Console.WriteLine($"PASS: {cases.Length} capture filter cases and Sprite override matcher cases");
 return 0;

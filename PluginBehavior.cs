@@ -16,6 +16,8 @@ public class PluginBehavior : MonoBehaviour
 
     private void Update()
     {
+        UiSpriteOverrideService.Tick(Time.unscaledDeltaTime);
+
         if (Input.GetKeyDown(KeyCode.F8))
         {
             CurrentGameSpeed = Time.timeScale + (float)TSKConfig.Speed;
@@ -96,6 +98,7 @@ public class PluginBehavior : MonoBehaviour
         {
             TSKConfig.Read();
             UiTranslationService.Reload();
+            UiSpriteOverrideService.Reload();
             Patch.EnsureTranslationFontLoaded();
             Window.Init();
             Plugin.Global.Log.LogInfo("[Config] reloaded.");
@@ -133,11 +136,13 @@ public class PluginBehavior : MonoBehaviour
     {
         UiTextCaptureService.Shutdown();
         UiTranslationService.Shutdown();
+        UiSpriteOverrideService.Shutdown();
     }
 
     private void OnDestroy()
     {
         UiTextCaptureService.Shutdown();
         UiTranslationService.Shutdown();
+        UiSpriteOverrideService.Shutdown();
     }
 }

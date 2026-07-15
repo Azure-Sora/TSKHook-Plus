@@ -51,6 +51,15 @@ You can edit config.json(`./BepInEx/plugins/config.json`) if you don't like defa
 | F12  | Screenshot  | Screenshot current frame and save to Pictures(`C:\Users\<username>\Pictures`) |
 | Ctrl | Skip text   | Skip text via Ctrl button, just like Galgame control system                   |
 
+## UI Sprite overrides
+
+TSKHook can replace selected `UnityEngine.UI.Image` sprites with translated PNG files without modifying the original game atlas. Runtime files live under `BepInEx/plugins/TSKHook/`:
+
+- `ui_sprite_overrides.json`: explicit, fail-closed target selectors.
+- `ui_textures/`: replacement PNG files.
+
+The bundled first rule replaces the 196x64 footer `btn_quest` sprite. Press F1 after editing the manifest or PNG files to restore the original sprites, reload assets, and apply the new files. F11 temporarily restores original sprites when translation is disabled. Replacement PNG dimensions must exactly match the manifest; paths must remain relative to the manifest directory.
+
 ## Contributing
 
 You're free to contribute to TSKHook as long as the features are useful, such as battle stats log, 360 stamina alert or

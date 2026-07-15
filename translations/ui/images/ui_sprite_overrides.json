@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "sprites": [
+    {
+      "id": "footer-quest",
+      "enabled": true,
+      "spriteName": "btn_quest",
+      "textureName": "sactx-0-2048x2048-DXT5|BC3-CommonPack-5c69fcce",
+      "width": 196,
+      "height": 64,
+      "objectPathSuffix": "HeaderFooterCanvas/FooterRoot/FooterView(Clone)/Quest",
+      "replacementFile": "ui_textures/btn_quest.png"
+    }
+  ]
+}

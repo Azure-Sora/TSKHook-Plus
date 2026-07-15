@@ -51,6 +51,15 @@
 | F12  | 截圖 | 截取當前的遊戲畫面至`C:\Users\<username>\Pictures` |
 | Ctrl | 跳過 | 按Ctrl能跳過文字，就像Galgame的Ctrl skip功能         |
 
+## UI Sprite 覆蓋
+
+TSKHook 可以用翻譯後的 PNG 替換指定的 `UnityEngine.UI.Image` Sprite，而不修改遊戲原始 Atlas。執行時檔案位於 `BepInEx/plugins/TSKHook/`：
+
+- `ui_sprite_overrides.json`：明確且遇到歧義時不套用的目標選擇規則。
+- `ui_textures/`：替換用 PNG 檔案。
+
+內建第一條規則會替換底部 196x64 的 `btn_quest` Sprite。修改清單或 PNG 後按 F1，TSKHook 會先還原原 Sprite，再重新載入並套用新資源。按 F11 關閉翻譯時也會暫時還原原 Sprite。替換 PNG 尺寸必須與清單完全一致，檔案路徑必須相對於清單目錄。
+
 ## 貢獻
 
 您可以PR一些有用的功能，例如戰鬥紀錄、360滿體提示之類，除了修改戰鬥數值

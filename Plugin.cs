@@ -22,6 +22,7 @@ public class Plugin : BasePlugin
         TSKConfig.Read();
         UiTextCaptureService.Initialize();
         UiTranslationService.Initialize();
+        UiSpriteOverrideService.Initialize();
         Patch.EnsureTranslationFontLoaded();
         Window.Init();
         Translation.InitAsync().Wait();
