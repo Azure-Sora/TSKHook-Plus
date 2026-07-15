@@ -8,7 +8,7 @@ translations/ui/
     ui_source.jsonl        # 正式待翻译主文件
     ui_conflicts.jsonl     # 稳定键冲突；正常应为空
     compile_summary.json   # 本次编译统计
-    by_category/           # 按领域拆分的只读/分工视图
+    by_category/           # 按领域拆分的译文工作文件
 ```
 
 原始游戏采集文件位于本机 `.local/`，不应提交。正式仓库只需要保存去除用户运行状态后的 `source/` 数据。
@@ -30,7 +30,7 @@ translations/ui/
 
 供大模型批量翻译时，请先把 [`LLM_TRANSLATION_GUIDE.md`](LLM_TRANSLATION_GUIDE.md) 的完整内容作为工作规范提供给模型。
 
-1. 只编辑 `translation` 和 `status`，不要手工修改 `key/source/sourceHash/identity`。
+1. 在 `source/by_category/*.jsonl` 中只编辑 `translation` 和 `status`，不要手工修改 `key/source/sourceHash/identity`。
 2. 机器初译完成后使用 `translated`；人工审校后使用 `reviewed`；进游戏确认排版和语义后使用 `verified`。
 3. 保留富文本标签、换行、占位符、数值符号和格式控制字符。
 4. 同一术语优先统一译法；技能等级之间只改动原文实际变化的数值或语句。
@@ -44,7 +44,11 @@ dotnet run --project .\tools\CompileUiTranslations\CompileUiTranslations.csproj 
   .\translations\ui\source\ui_source.jsonl
 ```
 
-编译器按 `key + sourceHash` 保留已有译文和状态；相同键的原文变化时保留旧译文并标记为 `stale`。任何 `ui_conflicts.jsonl` 非空的情况都应先修复键设计，再进入翻译。
+编译器先读取旧 `ui_source.jsonl`，再用现有 `by_category/*.jsonl` 覆盖其中的译文和状态，因此分类文件中的人工修改不会被追加采集覆盖。覆盖后再按 `key + sourceHash` 合并新采集；相同键的原文变化时保留旧译文并标记为 `stale`。
+
+分类文件是人工译文的工作源。若其中存在损坏的 JSON、缺失的 `key/sourceHash` 或重复 key，编译器会在写入任何输出文件之前停止。若要撤销某条译文，应保留该行并将 `translation` 清空、`status` 改回 `new`，不要直接删除该行。
+
+任何 `ui_conflicts.jsonl` 非空的情况都应先修复键设计，再进入翻译。
 
 ## 编译运行时翻译资产
 

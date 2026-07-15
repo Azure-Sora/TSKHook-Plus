@@ -22,8 +22,6 @@ if (!File.Exists(input))
     return 2;
 }
 
-Directory.CreateDirectory(outputDirectory);
-
 var jsonOptions = new JsonSerializerOptions
 {
     PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -32,7 +30,19 @@ var jsonOptions = new JsonSerializerOptions
 };
 var summaryOptions = new JsonSerializerOptions(jsonOptions) { WriteIndented = true };
 var groups = new Dictionary<string, Dictionary<string, Aggregate>>(StringComparer.Ordinal);
-var previousEntries = LoadPreviousEntries(output, jsonOptions);
+var previousLoad = LoadPreviousEntries(output, categoryDirectory, jsonOptions);
+if (previousLoad.Errors.Count > 0)
+{
+    Console.Error.WriteLine("Existing category translations are invalid; no output files were changed:");
+    foreach (var error in previousLoad.Errors)
+    {
+        Console.Error.WriteLine("  " + error);
+    }
+
+    return 3;
+}
+
+var previousEntries = previousLoad.Entries;
 var parseErrors = 0;
 var inputRows = 0;
 
@@ -100,6 +110,7 @@ entries = entries
     .ThenBy(entry => entry.Key, StringComparer.Ordinal)
     .ToList();
 
+Directory.CreateDirectory(outputDirectory);
 WriteJsonLines(output, entries, jsonOptions);
 WriteJsonLines(conflictsFile, conflicts, jsonOptions);
 Directory.CreateDirectory(categoryDirectory);
@@ -138,51 +149,107 @@ return parseErrors == 0 && conflicts.Count == 0 ? 0 : 1;
 
 static int RunSelfTest()
 {
-    var previous = new Dictionary<string, SourceEntry>(StringComparer.Ordinal)
+    var jsonOptions = new JsonSerializerOptions
     {
-        ["same"] = new SourceEntry
-        {
-            Key = "same", SourceHash = "hash-a", Translation = "译文A", Status = "reviewed"
-        },
-        ["changed"] = new SourceEntry
-        {
-            Key = "changed", SourceHash = "hash-old", Translation = "旧译文", Status = "verified"
-        }
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
-    var same = new SourceEntry { Key = "same", SourceHash = "hash-a", Translation = "", Status = "new" };
-    var changed = new SourceEntry { Key = "changed", SourceHash = "hash-new", Translation = "", Status = "new" };
-    var fresh = new SourceEntry { Key = "fresh", SourceHash = "hash-fresh", Translation = "", Status = "new" };
+    var tempDirectory = Path.Combine(Path.GetTempPath(), "tsk-ui-compile-" + Guid.NewGuid().ToString("N"));
+    var categoryDirectory = Path.Combine(tempDirectory, "by_category");
+    Directory.CreateDirectory(categoryDirectory);
 
-    ApplyPreviousTranslation(same, previous);
-    ApplyPreviousTranslation(changed, previous);
-    ApplyPreviousTranslation(fresh, previous);
+    try
+    {
+        var masterPath = Path.Combine(tempDirectory, "ui_source.jsonl");
+        WriteJsonLines(masterPath, new[]
+        {
+            new SourceEntry
+            {
+                Key = "same", SourceHash = "hash-a", Translation = "主文件译文", Status = "translated"
+            },
+            new SourceEntry
+            {
+                Key = "cleared", SourceHash = "hash-clear", Translation = "应被清空", Status = "reviewed"
+            },
+            new SourceEntry
+            {
+                Key = "changed", SourceHash = "hash-old", Translation = "旧译文", Status = "verified"
+            }
+        }, jsonOptions);
+        var categoryPath = Path.Combine(categoryDirectory, "unit.jsonl");
+        WriteJsonLines(categoryPath, new[]
+        {
+            new SourceEntry
+            {
+                Key = "same", SourceHash = "hash-a", Translation = "分类译文", Status = "reviewed"
+            },
+            new SourceEntry
+            {
+                Key = "cleared", SourceHash = "hash-clear", Translation = "", Status = "new"
+            }
+        }, jsonOptions);
 
-    var missionA = BuildKey(TestRecord("MissionList",
-        "$.result.special_mission_tab.mission_group_list[].limit_date_text", "あと48日",
-        ("mission_group_id", "131"), ("mission_type", "5")));
-    var missionB = BuildKey(TestRecord("MissionList",
-        "$.result.special_mission_tab.mission_group_list[].limit_date_text", "無期限",
-        ("mission_group_id", "132"), ("mission_type", "5")));
-    var freeItem = BuildKey(TestRecord("ShopList", "$.result.cost_mtrl_list[].item_name", "無料",
-        ("item_id", "0"), ("item_type", "0"), ("cost_type", "5")));
-    var platformItem = BuildKey(TestRecord("ShopList", "$.result.cost_mtrl_list[].item_name", "プラットフォーム通貨",
-        ("item_id", "0"), ("item_type", "0"), ("cost_type", "3")));
-    var rewardSingle = BuildKey(TestRecord("ShopList", "$.result.product_detail_list[].reward_name",
-        "[称号]角色", ("reward_id", "1001"), ("reward_type", "2")));
-    var rewardMultiline = BuildKey(TestRecord("GetGroupItemDetail", "$.result.item_list[].reward_name",
-        "[称号]\n角色", ("reward_id", "1001"), ("reward_type", "2")));
+        var previousLoad = LoadPreviousEntries(masterPath, categoryDirectory, jsonOptions);
+        var same = new SourceEntry { Key = "same", SourceHash = "hash-a", Translation = "", Status = "new" };
+        var cleared = new SourceEntry { Key = "cleared", SourceHash = "hash-clear", Translation = "", Status = "new" };
+        var changed = new SourceEntry { Key = "changed", SourceHash = "hash-new", Translation = "", Status = "new" };
+        var fresh = new SourceEntry { Key = "fresh", SourceHash = "hash-fresh", Translation = "", Status = "new" };
 
-    var passed = same.Translation == "译文A" && same.Status == "reviewed" &&
-                 changed.Translation == "旧译文" && changed.Status == "stale" &&
-                 changed.PreviousSourceHash == "hash-old" &&
-                 fresh.Translation == "" && fresh.Status == "new" &&
-                 missionA.Key != missionB.Key &&
-                 freeItem.Key != platformItem.Key &&
-                 rewardSingle.Key != rewardMultiline.Key;
-    Console.WriteLine(passed
-        ? "PASS: merge behavior and context-sensitive stable keys"
-        : "FAIL: merge behavior or context-sensitive stable keys");
-    return passed ? 0 : 1;
+        ApplyPreviousTranslation(same, previousLoad.Entries);
+        ApplyPreviousTranslation(cleared, previousLoad.Entries);
+        ApplyPreviousTranslation(changed, previousLoad.Entries);
+        ApplyPreviousTranslation(fresh, previousLoad.Entries);
+
+        var duplicatePath = Path.Combine(categoryDirectory, "misc.jsonl");
+        WriteJsonLines(duplicatePath, new[]
+        {
+            new SourceEntry
+            {
+                Key = "same", SourceHash = "hash-a", Translation = "重复译文", Status = "translated"
+            }
+        }, jsonOptions);
+        var duplicateLoad = LoadPreviousEntries(masterPath, categoryDirectory, jsonOptions);
+        File.Delete(duplicatePath);
+
+        var malformedPath = Path.Combine(categoryDirectory, "broken.jsonl");
+        File.WriteAllText(malformedPath, "{not-json}", new UTF8Encoding(false));
+        var malformedLoad = LoadPreviousEntries(masterPath, categoryDirectory, jsonOptions);
+
+        var missionA = BuildKey(TestRecord("MissionList",
+            "$.result.special_mission_tab.mission_group_list[].limit_date_text", "あと48日",
+            ("mission_group_id", "131"), ("mission_type", "5")));
+        var missionB = BuildKey(TestRecord("MissionList",
+            "$.result.special_mission_tab.mission_group_list[].limit_date_text", "無期限",
+            ("mission_group_id", "132"), ("mission_type", "5")));
+        var freeItem = BuildKey(TestRecord("ShopList", "$.result.cost_mtrl_list[].item_name", "無料",
+            ("item_id", "0"), ("item_type", "0"), ("cost_type", "5")));
+        var platformItem = BuildKey(TestRecord("ShopList", "$.result.cost_mtrl_list[].item_name", "プラットフォーム通貨",
+            ("item_id", "0"), ("item_type", "0"), ("cost_type", "3")));
+        var rewardSingle = BuildKey(TestRecord("ShopList", "$.result.product_detail_list[].reward_name",
+            "[称号]角色", ("reward_id", "1001"), ("reward_type", "2")));
+        var rewardMultiline = BuildKey(TestRecord("GetGroupItemDetail", "$.result.item_list[].reward_name",
+            "[称号]\n角色", ("reward_id", "1001"), ("reward_type", "2")));
+
+        var passed = previousLoad.Errors.Count == 0 &&
+                     same.Translation == "分类译文" && same.Status == "reviewed" &&
+                     cleared.Translation == "" && cleared.Status == "new" &&
+                     changed.Translation == "旧译文" && changed.Status == "stale" &&
+                     changed.PreviousSourceHash == "hash-old" &&
+                     fresh.Translation == "" && fresh.Status == "new" &&
+                     duplicateLoad.Errors.Any(error => error.Contains("Duplicate key", StringComparison.Ordinal)) &&
+                     malformedLoad.Errors.Any(error => error.Contains("Invalid JSON", StringComparison.Ordinal)) &&
+                     missionA.Key != missionB.Key &&
+                     freeItem.Key != platformItem.Key &&
+                     rewardSingle.Key != rewardMultiline.Key;
+        Console.WriteLine(passed
+            ? "PASS: category overlay, safe validation, merge behavior and context-sensitive stable keys"
+            : "FAIL: category overlay, safe validation, merge behavior or context-sensitive stable keys");
+        return passed ? 0 : 1;
+    }
+    finally
+    {
+        Directory.Delete(tempDirectory, true);
+    }
 }
 
 static CaptureRecord TestRecord(string apiName, string path, string source,
@@ -201,27 +268,76 @@ static UiTextKeyDescriptor BuildKey(CaptureRecord record) => UiTextKeyBuilder.Bu
     record.ApiName, record.Path, record.Source, record.SourceHash,
     record.Context ?? new Dictionary<string, string>(StringComparer.Ordinal));
 
-static Dictionary<string, SourceEntry> LoadPreviousEntries(string path, JsonSerializerOptions options)
+static PreviousEntryLoadResult LoadPreviousEntries(
+    string masterPath,
+    string categoryDirectory,
+    JsonSerializerOptions options)
 {
-    var result = new Dictionary<string, SourceEntry>(StringComparer.Ordinal);
-    if (!File.Exists(path))
+    var result = new PreviousEntryLoadResult();
+    if (File.Exists(masterPath))
+    {
+        foreach (var line in File.ReadLines(masterPath))
+        {
+            try
+            {
+                var entry = JsonSerializer.Deserialize<SourceEntry>(line, options);
+                if (entry != null && !string.IsNullOrEmpty(entry.Key))
+                {
+                    result.Entries[entry.Key] = entry;
+                }
+            }
+            catch (JsonException)
+            {
+                // The master file is generated and recoverable from capture plus category files.
+            }
+        }
+    }
+
+    if (!Directory.Exists(categoryDirectory))
     {
         return result;
     }
 
-    foreach (var line in File.ReadLines(path))
+    var categoryKeys = new Dictionary<string, string>(StringComparer.Ordinal);
+    foreach (var path in Directory.EnumerateFiles(categoryDirectory, "*.jsonl")
+                 .OrderBy(value => value, StringComparer.Ordinal))
     {
-        try
+        var lineNumber = 0;
+        foreach (var line in File.ReadLines(path))
         {
-            var entry = JsonSerializer.Deserialize<SourceEntry>(line, options);
-            if (entry != null && !string.IsNullOrEmpty(entry.Key))
+            lineNumber++;
+            if (string.IsNullOrWhiteSpace(line))
             {
-                result[entry.Key] = entry;
+                continue;
             }
-        }
-        catch (JsonException)
-        {
-            // A malformed previous line must not prevent rebuilding from valid capture data.
+
+            SourceEntry entry;
+            try
+            {
+                entry = JsonSerializer.Deserialize<SourceEntry>(line, options);
+            }
+            catch (JsonException exception)
+            {
+                result.Errors.Add(
+                    $"Invalid JSON in {path}:{lineNumber}: {exception.Message}");
+                continue;
+            }
+
+            if (entry == null || string.IsNullOrEmpty(entry.Key) || string.IsNullOrEmpty(entry.SourceHash))
+            {
+                result.Errors.Add($"Missing key or sourceHash in {path}:{lineNumber}.");
+                continue;
+            }
+
+            if (categoryKeys.TryGetValue(entry.Key, out var previousLocation))
+            {
+                result.Errors.Add(
+                    $"Duplicate key '{entry.Key}' in {path}:{lineNumber}; first seen at {previousLocation}.");
+                continue;
+            }
+
+            categoryKeys[entry.Key] = path + ":" + lineNumber;
+            result.Entries[entry.Key] = entry;
         }
     }
 
@@ -312,4 +428,10 @@ internal sealed class SourceEntry
     public int Occurrences { get; set; }
     public string[] Origins { get; set; }
     public string FirstSeenUtc { get; set; }
+}
+
+internal sealed class PreviousEntryLoadResult
+{
+    internal Dictionary<string, SourceEntry> Entries { get; } = new(StringComparer.Ordinal);
+    internal List<string> Errors { get; } = new();
 }

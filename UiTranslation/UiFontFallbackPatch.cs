@@ -10,7 +10,10 @@ internal static class UiFontFallbackPatch
 {
     private static readonly object FontLock = new();
     private static readonly HashSet<int> ProcessedFontIds = new();
+    private static readonly HashSet<int> UnreadableAtlasFontIds = new();
     private static int errorCount;
+    private static int atlasGuardErrorCount;
+    private static long skippedUnreadableAtlasInsertions;
 
     internal static int ProcessedFontCount
     {
@@ -20,6 +23,57 @@ internal static class UiFontFallbackPatch
             {
                 return ProcessedFontIds.Count;
             }
+        }
+    }
+
+    internal static long SkippedUnreadableAtlasInsertions =>
+        Interlocked.Read(ref skippedUnreadableAtlasInsertions);
+
+    [HarmonyPrefix]
+    [HarmonyPatch(typeof(TMP_FontAsset), nameof(TMP_FontAsset.TryAddCharacterInternal))]
+    private static bool SkipUnreadableAtlasInsertion(
+        TMP_FontAsset __instance,
+        ref TMP_Character character,
+        ref bool __result)
+    {
+        if (!TSKConfig.TranslationEnabled || !TSKConfig.UiTranslationEnabled || __instance == null)
+        {
+            return true;
+        }
+
+        try
+        {
+            var atlasTexture = __instance.atlasTexture;
+            if (atlasTexture == null || atlasTexture.isReadable)
+            {
+                return true;
+            }
+
+            character = null;
+            __result = false;
+            Interlocked.Increment(ref skippedUnreadableAtlasInsertions);
+
+            var fontId = __instance.GetInstanceID();
+            lock (FontLock)
+            {
+                if (UnreadableAtlasFontIds.Add(fontId))
+                {
+                    Plugin.Global.Log.LogInfo(
+                        $"[UI Translation] Skipping failed glyph insertion for unreadable TMP atlas: {__instance.name}.");
+                }
+            }
+
+            return false;
+        }
+        catch (Exception exception)
+        {
+            if (Interlocked.Increment(ref atlasGuardErrorCount) <= 5)
+            {
+                Plugin.Global.Log.LogWarning(
+                    $"[UI Translation] Could not inspect TMP atlas before glyph insertion: {exception}");
+            }
+
+            return true;
         }
     }
 

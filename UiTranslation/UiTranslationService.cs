@@ -169,7 +169,8 @@ internal static class UiTranslationService
             $"text values: {Interlocked.Read(ref translatedTexts)}, " +
             $"inspected responses: {Interlocked.Read(ref inspectedResponses)}, " +
             $"transform time: {Interlocked.Read(ref totalTransformMilliseconds)} ms, " +
-            $"TMP fonts configured: {UiFontFallbackPatch.ProcessedFontCount}.");
+            $"TMP fonts configured: {UiFontFallbackPatch.ProcessedFontCount}, " +
+            $"unreadable atlas insertions skipped: {UiFontFallbackPatch.SkippedUnreadableAtlasInsertions}.");
     }
 
     private static void LogLimitedError(string apiName, string message)
