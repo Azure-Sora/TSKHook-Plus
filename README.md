@@ -36,6 +36,10 @@ You can edit config.json(`./BepInEx/plugins/config.json`) if you don't like defa
 | width     | 1280          | Game window width                                            |
 | height    | 720           | Game window height                                           |
 | zoom      | 1.0           | Character standing zoom in/out ratio                         |
+| uiTranslation | true      | Enable/Disable structured UI text translation                |
+| uiCapture | true          | Enable/Disable structured UI text capture                    |
+| uiCaptureFlushSeconds | 5 | UI capture file flush interval in seconds                     |
+| uiSpriteDump | false      | Allow F9 to export active UI Image sprites                    |
 
 ## Key binding
 
@@ -46,10 +50,17 @@ You can edit config.json(`./BepInEx/plugins/config.json`) if you don't like defa
 | F6   | Reset       | Reset game speed to 1x/normal                                                 | 
 | F7   | Decrease    | Decrease game speed (2-0.5 etc), depends on your `speed` config               | 
 | F8   | Increase    | Increase game speed (1+0.5 etc), depends on your `speed` config               |
+| F9   | UI assets   | Export unique sprites used by active UI Images (requires `uiSpriteDump=true`)  |
 | F10  | Translation | Clear translation cache                                                       |
 | F11  | Translation | Enable/Disable translation feature                                            |
 | F12  | Screenshot  | Screenshot current frame and save to Pictures(`C:\Users\<username>\Pictures`) |
 | Ctrl | Skip text   | Skip text via Ctrl button, just like Galgame control system                   |
+
+### Exporting packed UI sprites
+
+Set `uiSpriteDump` to `true`, press F1 to reload the config, open the UI page whose assets you want, and press F9. TSKHook renders every unique sprite referenced by an enabled, active `UnityEngine.UI.Image` on that page, including Tight Packed sprites that UnityExplorer cannot crop correctly. It also exports complete atlas textures referenced by active Spine `SkeletonGraphic` controls.
+
+Each run is written to `BepInEx/plugins/TSKHook/ui_sprite_dump/<timestamp>/`. The root folder contains Sprite PNG files and `manifest.json`. Spine resources are placed in `spine_atlases/`, with complete transparent atlas PNG files, available `.atlas.txt` region data, and `spine_manifest.json`. Keep the dimensions and layout of edited Spine atlas PNGs unchanged. The exporter does not modify loaded game resources. Set `uiSpriteDump` back to `false` when finished.
 
 ## Contributing
 

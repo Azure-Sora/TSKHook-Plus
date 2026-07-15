@@ -36,6 +36,10 @@
 | width     | 1280 | 遊戲視窗寬度                     |
 | height    | 720  | 遊戲視窗高度                     | 
 | zoom      | 1.0  | 角色立繪放大縮小倍率                 |
+| uiTranslation | true | 開啟/關閉結構化 UI 文字翻譯          |
+| uiCapture | true | 開啟/關閉結構化 UI 文字擷取             |
+| uiCaptureFlushSeconds | 5 | UI 擷取檔案寫入間隔（秒）       |
+| uiSpriteDump | false | 允許 F9 匯出目前啟用的 UI Image Sprite |
 
 ## 綁定鍵
 
@@ -46,10 +50,17 @@
 | F6   | 重設 | 將遊戲重設至正常速度                               | 
 | F7   | 減少 | 減慢遊戲速度，視乎您的 `speed` 設定                   | 
 | F8   | 增加 | 加快遊戲速度，視乎您的 `speed` 設定                   |
+| F9   | UI 資源 | 匯出目前啟用 UI Image 使用的 Sprite（需設 `uiSpriteDump=true`） |
 | F10  | 翻譯 | 刪除翻譯快取                                   |
 | F11  | 翻譯 | 開啟/關閉中文翻譯功能                              |
 | F12  | 截圖 | 截取當前的遊戲畫面至`C:\Users\<username>\Pictures` |
 | Ctrl | 跳過 | 按Ctrl能跳過文字，就像Galgame的Ctrl skip功能         |
+
+### 匯出 Packed UI Sprite
+
+將 `uiSpriteDump` 設為 `true`，按 F1 重新載入設定，開啟要擷取資源的 UI 頁面後按 F9。TSKHook 會渲染該頁所有已啟用且正在顯示的 `UnityEngine.UI.Image` 所引用的不重複 Sprite，也能正確處理 UnityExplorer 無法裁切的 Tight Packed Sprite；同時也會匯出目前啟用的 Spine `SkeletonGraphic` 所引用的完整 Atlas Texture。
+
+每次匯出會寫入 `BepInEx/plugins/TSKHook/ui_sprite_dump/<時間戳>/`。根目錄包含 Sprite PNG 與 `manifest.json`；Spine 資源位於 `spine_atlases/`，包含完整透明 Atlas PNG、可取得時的 `.atlas.txt` 分塊資料，以及 `spine_manifest.json`。編輯 Spine Atlas 時必須保持原始尺寸與版面不變。匯出器不會修改遊戲載入的資源。完成後建議將 `uiSpriteDump` 改回 `false`。
 
 ## 貢獻
 

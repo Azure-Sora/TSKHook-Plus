@@ -15,6 +15,7 @@ public class TSKConfig
     public static bool UiTranslationEnabled;
     public static bool UiCaptureEnabled;
     public static int UiCaptureFlushSeconds;
+    public static bool UiSpriteDumpEnabled;
 
     public static void Read()
     {
@@ -116,8 +117,18 @@ public class TSKConfig
                 needWrite = true;
             }
 
+            if (config.TryGetProperty("uiSpriteDump", out var uiSpriteDumpValue))
+            {
+                UiSpriteDumpEnabled = uiSpriteDumpValue.GetBoolean();
+            }
+            else
+            {
+                UiSpriteDumpEnabled = false;
+                needWrite = true;
+            }
+
             if (needWrite) WriteJsonFile(Speed, FPS, TranslationEnabled, width, height, zoom,
-                UiTranslationEnabled, UiCaptureEnabled, UiCaptureFlushSeconds);
+                UiTranslationEnabled, UiCaptureEnabled, UiCaptureFlushSeconds, UiSpriteDumpEnabled);
 
             Plugin.Global.Log.LogInfo("Current setting:");
             Plugin.Global.Log.LogInfo("Game speed(each step): " + Speed);
@@ -126,6 +137,7 @@ public class TSKConfig
             Plugin.Global.Log.LogInfo("Zoom ratio: " + zoom);
             Plugin.Global.Log.LogInfo("UI translation: " + (UiTranslationEnabled ? "Enabled" : "Disabled"));
             Plugin.Global.Log.LogInfo("UI capture: " + (UiCaptureEnabled ? "Enabled" : "Disabled"));
+            Plugin.Global.Log.LogInfo("UI Sprite dump: " + (UiSpriteDumpEnabled ? "Enabled" : "Disabled"));
         }
         else
         {
@@ -140,14 +152,15 @@ public class TSKConfig
             UiTranslationEnabled = true;
             UiCaptureEnabled = true;
             UiCaptureFlushSeconds = 5;
+            UiSpriteDumpEnabled = false;
 
             // Create default JSON file
-            WriteJsonFile(0.5, 60, true, width, height, zoom, true, true, 5);
+            WriteJsonFile(0.5, 60, true, width, height, zoom, true, true, 5, false);
         }
     }
 
     public static void WriteJsonFile(double speed, int fps, bool enabled, int w, int h, float z,
-        bool uiTranslation, bool uiCapture, int uiCaptureFlushSeconds)
+        bool uiTranslation, bool uiCapture, int uiCaptureFlushSeconds, bool uiSpriteDump)
     {
         var config = new config
         {
@@ -159,7 +172,8 @@ public class TSKConfig
             zoom = z,
             uiTranslation = uiTranslation,
             uiCapture = uiCapture,
-            uiCaptureFlushSeconds = uiCaptureFlushSeconds
+            uiCaptureFlushSeconds = uiCaptureFlushSeconds,
+            uiSpriteDump = uiSpriteDump
         };
 
         var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
@@ -177,5 +191,6 @@ public class TSKConfig
         public bool uiTranslation { get; set; }
         public bool uiCapture { get; set; }
         public int uiCaptureFlushSeconds { get; set; }
+        public bool uiSpriteDump { get; set; }
     }
 }

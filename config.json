@@ -7,5 +7,6 @@
     "zoom": 1.0,
     "uiTranslation": true,
     "uiCapture": true,
-    "uiCaptureFlushSeconds": 5
+    "uiCaptureFlushSeconds": 5,
+    "uiSpriteDump": false
 }

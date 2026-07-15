@@ -29,6 +29,12 @@ public class PluginBehavior : MonoBehaviour
             Notification.Popup("Game Speed", text);
         }
 
+        if (Input.GetKeyDown(KeyCode.F9))
+        {
+            var summary = UiSpriteDumpService.DumpCurrentUiSprites();
+            Notification.Popup("UI Sprite Dump", summary);
+        }
+
         if (Input.GetKeyDown(KeyCode.F7))
         {
             CurrentGameSpeed = Time.timeScale - (float)TSKConfig.Speed;
