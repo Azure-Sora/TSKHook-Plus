@@ -105,6 +105,8 @@ foreach (var baseKey in groups.Keys.OrderBy(value => value, StringComparer.Ordin
     }
 }
 
+var preservedPreviousEntries = AppendMissingPreviousEntries(entries, previousEntries);
+
 entries = entries
     .OrderBy(entry => entry.Category, StringComparer.Ordinal)
     .ThenBy(entry => entry.Key, StringComparer.Ordinal)
@@ -129,7 +131,9 @@ var summary = new
     inputFile = Path.GetFileName(input),
     inputRows,
     parseErrors,
-    stableKeys = groups.Count,
+    inputStableKeys = groups.Count,
+    preservedPreviousEntries,
+    stableKeys = entries.Count,
     outputEntries = entries.Count,
     conflictKeys = groups.Count(pair => pair.Value.Count > 1),
     conflictEntries = conflicts.Count,
@@ -139,7 +143,9 @@ File.WriteAllText(summaryFile, JsonSerializer.Serialize(summary, summaryOptions)
 
 Console.WriteLine($"Input rows: {inputRows}");
 Console.WriteLine($"Parse errors: {parseErrors}");
-Console.WriteLine($"Stable keys: {groups.Count}");
+Console.WriteLine($"Input stable keys: {groups.Count}");
+Console.WriteLine($"Preserved previous entries: {preservedPreviousEntries}");
+Console.WriteLine($"Stable keys: {entries.Count}");
 Console.WriteLine($"Output entries: {entries.Count}");
 Console.WriteLine($"Conflict keys: {summary.conflictKeys}");
 Console.WriteLine($"Source: {output}");
@@ -200,6 +206,9 @@ static int RunSelfTest()
         ApplyPreviousTranslation(changed, previousLoad.Entries);
         ApplyPreviousTranslation(fresh, previousLoad.Entries);
 
+        var partialEntries = new List<SourceEntry> { fresh };
+        var preservedEntries = AppendMissingPreviousEntries(partialEntries, previousLoad.Entries);
+
         var duplicatePath = Path.Combine(categoryDirectory, "misc.jsonl");
         WriteJsonLines(duplicatePath, new[]
         {
@@ -229,6 +238,15 @@ static int RunSelfTest()
             "[称号]角色", ("reward_id", "1001"), ("reward_type", "2")));
         var rewardMultiline = BuildKey(TestRecord("GetGroupItemDetail", "$.result.item_list[].reward_name",
             "[称号]\n角色", ("reward_id", "1001"), ("reward_type", "2")));
+        var exSkillLevel9 = BuildKey(TestRecord("ExSkillStrengthenData",
+            "$.result.skill_data_list[].ex_skill_lv_list[].detail", "技能等级9",
+            ("ex_skill_id", "10070011"), ("ex_skill_lv", "9"), ("ex_skill_max_lv", "10")));
+        var exSkillLevel10 = BuildKey(TestRecord("ExSkillStrengthenData",
+            "$.result.skill_data_list[].ex_skill_lv_list[].ex_skill_name", "技能等级10",
+            ("ex_skill_id", "10070011"), ("ex_skill_lv", "10"), ("ex_skill_max_lv", "10")));
+        var exSkillItem = BuildKey(TestRecord("ExSkillStrengthenData",
+            "$.result.skill_data_list[].mtrl_list[].detail", "技能材料",
+            ("ex_skill_id", "10070011"), ("ex_skill_lv", "9"), ("item_id", "10004")));
 
         var passed = previousLoad.Errors.Count == 0 &&
                      same.Translation == "分类译文" && same.Status == "reviewed" &&
@@ -236,11 +254,21 @@ static int RunSelfTest()
                      changed.Translation == "旧译文" && changed.Status == "stale" &&
                      changed.PreviousSourceHash == "hash-old" &&
                      fresh.Translation == "" && fresh.Status == "new" &&
+                     preservedEntries == 3 && partialEntries.Count == 4 &&
+                     partialEntries.Any(entry => entry.Key == "same" &&
+                         entry.Translation == "分类译文" && entry.Status == "reviewed") &&
+                     partialEntries.Any(entry => entry.Key == "cleared" &&
+                         entry.Translation == "" && entry.Status == "new") &&
                      duplicateLoad.Errors.Any(error => error.Contains("Duplicate key", StringComparison.Ordinal)) &&
                      malformedLoad.Errors.Any(error => error.Contains("Invalid JSON", StringComparison.Ordinal)) &&
                      missionA.Key != missionB.Key &&
                      freeItem.Key != platformItem.Key &&
-                     rewardSingle.Key != rewardMultiline.Key;
+                     rewardSingle.Key != rewardMultiline.Key &&
+                     exSkillLevel9.Category == "skill" && exSkillLevel9.Field == "skill_detail" &&
+                     exSkillLevel9.Key == "skill:lv=9:skill_id=10070011:skill_detail" &&
+                     exSkillLevel10.Category == "skill" && exSkillLevel10.Field == "skill_name" &&
+                     exSkillLevel10.Key == "skill:lv=10:skill_id=10070011:skill_name" &&
+                     exSkillItem.Category == "item";
         Console.WriteLine(passed
             ? "PASS: category overlay, safe validation, merge behavior and context-sensitive stable keys"
             : "FAIL: category overlay, safe validation, merge behavior or context-sensitive stable keys");
@@ -361,6 +389,26 @@ static void ApplyPreviousTranslation(SourceEntry entry, IReadOnlyDictionary<stri
         entry.Status = "stale";
         entry.PreviousSourceHash = previous.SourceHash;
     }
+}
+
+static int AppendMissingPreviousEntries(
+    ICollection<SourceEntry> entries,
+    IReadOnlyDictionary<string, SourceEntry> previousEntries)
+{
+    var currentKeys = new HashSet<string>(entries.Select(entry => entry.Key), StringComparer.Ordinal);
+    var preserved = 0;
+    foreach (var previous in previousEntries.Values.OrderBy(entry => entry.Key, StringComparer.Ordinal))
+    {
+        if (!currentKeys.Add(previous.Key))
+        {
+            continue;
+        }
+
+        entries.Add(previous);
+        preserved++;
+    }
+
+    return preserved;
 }
 
 static void WriteJsonLines(string path, IEnumerable<SourceEntry> records, JsonSerializerOptions options)

@@ -44,7 +44,7 @@ dotnet run --project .\tools\CompileUiTranslations\CompileUiTranslations.csproj 
   .\translations\ui\source\ui_source.jsonl
 ```
 
-编译器先读取旧 `ui_source.jsonl`，再用现有 `by_category/*.jsonl` 覆盖其中的译文和状态，因此分类文件中的人工修改不会被追加采集覆盖。覆盖后再按 `key + sourceHash` 合并新采集；相同键的原文变化时保留旧译文并标记为 `stale`。
+编译器先读取旧 `ui_source.jsonl`，再用现有 `by_category/*.jsonl` 覆盖其中的译文和状态，因此分类文件中的人工修改不会被追加采集覆盖。新采集按稳定键增量并入：本次未捕获到的旧条目仍会保留，不要求每次采集文件都是完整快照；相同键的原文变化时保留旧译文并标记为 `stale`。
 
 分类文件是人工译文的工作源。若其中存在损坏的 JSON、缺失的 `key/sourceHash` 或重复 key，编译器会在写入任何输出文件之前停止。若要撤销某条译文，应保留该行并将 `translation` 清空、`status` 改回 `new`，不要直接删除该行。
 

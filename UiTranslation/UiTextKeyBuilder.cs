@@ -65,6 +65,12 @@ internal static class UiTextKeyBuilder
                 : Create("equip", field, context, ("equip_id", true));
         }
 
+        if (context.ContainsKey("ex_skill_id") &&
+            path.Contains("skill_data_list", StringComparison.OrdinalIgnoreCase))
+        {
+            return CreateExSkill(field, context);
+        }
+
         if (context.ContainsKey("skill_id") && path.Contains("skill", StringComparison.OrdinalIgnoreCase))
         {
             return Create("skill", field, context,
@@ -104,6 +110,27 @@ internal static class UiTextKeyBuilder
         }
 
         return FromIdentity("misc", field, identity, apiName);
+    }
+
+    private static UiTextKeyDescriptor CreateExSkill(string field,
+        IReadOnlyDictionary<string, string> context)
+    {
+        var identity = new SortedDictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["skill_id"] = context["ex_skill_id"]
+        };
+        if (context.TryGetValue("ex_skill_lv", out var level))
+        {
+            identity["lv"] = level;
+        }
+
+        var normalizedField = field switch
+        {
+            "ex_skill_name" => "skill_name",
+            "detail" => "skill_detail",
+            _ => field
+        };
+        return FromIdentity("skill", normalizedField, identity, null);
     }
 
     private static UiTextKeyDescriptor CreateSisterSkill(string field, string path,
