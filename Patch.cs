@@ -20,7 +20,6 @@ public class Patch
     {
         Harmony.CreateAndPatchAll(typeof(Patch));
         Harmony.CreateAndPatchAll(typeof(NetworkCapturePatch));
-        Harmony.CreateAndPatchAll(typeof(SkillRequestObservationPatch));
         Harmony.CreateAndPatchAll(typeof(UiFontFallbackPatch));
     }
 

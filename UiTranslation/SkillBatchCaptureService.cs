@@ -27,8 +27,7 @@ internal static class SkillBatchCaptureService
         reportPath = Path.Combine(directory, "skill_batch_report.json");
 
         Plugin.Global.Log.LogInfo(
-            $"[Skill Batch] {(TSKConfig.SkillBatchCaptureEnabled ? "Passive calibration available" : "Disabled")}. " +
-            "Hotkey: F9; active requests are disabled for safety.");
+            "[Skill Batch] Temporarily disabled for safety; no active or passive network hooks are installed.");
     }
 
     internal static void ObserveResponse(string apiName, string formattedResponse)
@@ -108,38 +107,9 @@ internal static class SkillBatchCaptureService
 
     internal static void Toggle()
     {
-        if (waitingForNormalRequest)
-        {
-            waitingForNormalRequest = false;
-            lastError = "Passive calibration cancelled by user.";
-            WriteReport("cancelled");
-            Notification.Popup("Skill capture", "Passive calibration cancelled.");
-            return;
-        }
-
-        if (!TSKConfig.SkillBatchCaptureEnabled)
-        {
-            Notification.Popup("Skill capture", "Disabled in config.json (skillBatchCapture=false). ");
-            Plugin.Global.Log.LogWarning("[Skill Batch] Start refused: feature is disabled in config.json.");
-            return;
-        }
-
-        if (Catalog.UnitCount == 0)
-        {
-            Notification.Popup("Skill capture", "No UnitList observed. Open the character list, then retry.");
-            Plugin.Global.Log.LogWarning("[Skill Batch] Passive calibration refused: no UnitList observed.");
-            return;
-        }
-
-        observedRequestId = 0;
-        requestEncoding = null;
-        lastError = null;
-        waitingForNormalRequest = true;
-        WriteReport("waiting_for_normal_request");
-        Plugin.Global.Log.LogInfo(
-            "[Skill Batch] Passive calibration armed. Open one EX skill enhancement page normally. " +
-            "The Mod will not send any request itself.");
-        Notification.Popup("Skill capture", "Open one EX skill enhancement page normally.");
+        Plugin.Global.Log.LogWarning(
+            "[Skill Batch] F9 ignored: feature is temporarily disabled for game stability.");
+        Notification.Popup("Skill capture", "Temporarily disabled for game stability.");
     }
 
     internal static void Update()
