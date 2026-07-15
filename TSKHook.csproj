@@ -34,7 +34,6 @@
     <GameDlls Include="
 		      $(GamePath)\BepInEx\interop\Assembly-CSharp.dll;
 		      $(GamePath)\BepInEx\interop\Newtonsoft.Json.dll;
-		      $(GamePath)\BepInEx\interop\UniTask.dll;
 		      $(GamePath)\BepInEx\interop\Il2Cpp*.dll;
 		      $(GamePath)\BepInEx\interop\spine-*.dll;
 		      $(GamePath)\BepInEx\interop\Unity*.dll">

@@ -115,18 +115,18 @@ if (!automaticCatalog.SetIdentifierMode(SkillBatchIdentifierMode.MasterUnitId) |
 
 Console.WriteLine("PASS: automatic skill batch ID probe, response matching, and mode commit cases");
 
-if (SkillBatchCatalog.GetFallbackModeAfterRequestError(SkillBatchIdentifierMode.UserUnitId) !=
-        SkillBatchIdentifierMode.MasterUnitId ||
-    SkillBatchCatalog.GetFallbackModeAfterRequestError(SkillBatchIdentifierMode.MasterUnitId) !=
-        SkillBatchIdentifierMode.Unknown ||
-    SkillBatchCatalog.GetFallbackModeAfterRequestError(SkillBatchIdentifierMode.Unknown) !=
-        SkillBatchIdentifierMode.Unknown)
+if (!SkillBatchCatalog.TryExtractRequestId("{\"unit_id\":2174808}", out var numericRequestId) ||
+    numericRequestId != 2174808 ||
+    !SkillBatchCatalog.TryExtractRequestId("{\"unit_id\":\"1006001\"}", out var stringRequestId) ||
+    stringRequestId != 1006001 ||
+    SkillBatchCatalog.TryExtractRequestId("{\"other_id\":1006001}", out _) ||
+    SkillBatchCatalog.TryExtractRequestId("encrypted-body", out _))
 {
-    Console.Error.WriteLine("FAIL automatic calibration request-error fallback sequence");
+    Console.Error.WriteLine("FAIL passive outgoing request ID extraction");
     return 1;
 }
 
-Console.WriteLine("PASS: automatic calibration request-error fallback sequence");
+Console.WriteLine("PASS: passive outgoing request ID extraction cases");
 
 if (!SkillBatchCatalog.HasExSkillDataResponse(
         "{\"result\":{\"skill_data_list\":[{\"ex_skill_id\":1001}]}}") ||

@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using BepInEx;
@@ -9,47 +8,39 @@ namespace TSKHook;
 
 internal static class SkillBatchCaptureService
 {
+    private const string ExSkillPath = "/api/unit/exSkillStrengthenData";
     private static readonly SkillBatchCatalog Catalog = new();
-    private static readonly Queue<int> Pending = new();
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     private static string reportPath;
-    private static Il2CppSystem.Action requestErrorCallback;
-    private static bool running;
-    private static bool requestInFlight;
-    private static bool calibrating;
-    private static SkillBatchIdentifierMode calibrationAttemptMode;
-    private static int calibrationUserUnitId;
-    private static int calibrationMasterUnitId;
-    private static int total;
-    private static int completed;
-    private static int succeeded;
-    private static int failed;
-    private static int currentRequestId;
+    private static bool waitingForNormalRequest;
+    private static int observedRequestId;
+    private static string requestEncoding;
     private static string lastError;
-    private static DateTime startedAtUtc;
-    private static DateTime nextRequestAtUtc;
-    private static DateTime requestDeadlineUtc;
 
-    internal static bool IsRunning => running;
+    internal static bool IsRunning => waitingForNormalRequest;
 
     internal static void Initialize()
     {
         var directory = Path.Combine(Paths.PluginPath, "TSKHook", "ui_capture");
         Directory.CreateDirectory(directory);
         reportPath = Path.Combine(directory, "skill_batch_report.json");
-        requestErrorCallback = (System.Action)ObserveRequestError;
 
         Plugin.Global.Log.LogInfo(
-            $"[Skill Batch] {(TSKConfig.SkillBatchCaptureEnabled ? "Available" : "Disabled")}. " +
-            "Hotkey: F9; read-only requests only.");
+            $"[Skill Batch] {(TSKConfig.SkillBatchCaptureEnabled ? "Passive calibration available" : "Disabled")}. " +
+            "Hotkey: F9; active requests are disabled for safety.");
     }
 
     internal static void ObserveResponse(string apiName, string formattedResponse)
     {
         if (string.Equals(apiName, ApiName.ExSkillStrengthenData.ToString(), StringComparison.Ordinal))
         {
-            ObserveExSkillResponse(formattedResponse);
+            if (waitingForNormalRequest)
+            {
+                Plugin.Global.Log.LogInfo(
+                    "[Skill Batch] Normal EX skill response observed after passive request capture.");
+                UiTextCaptureService.FlushNow();
+            }
             return;
         }
 
@@ -73,82 +64,56 @@ internal static class SkillBatchCaptureService
         }
     }
 
+    internal static void ObserveOutgoingRequest(string url, string body)
+    {
+        if (!waitingForNormalRequest || string.IsNullOrEmpty(url) ||
+            url.IndexOf(ExSkillPath, StringComparison.OrdinalIgnoreCase) < 0)
+        {
+            return;
+        }
+
+        if (!TryDecodeRequestId(body, out var requestId, out var encoding))
+        {
+            lastError = "Normal EX request was observed, but its unit_id could not be decoded.";
+            WriteReport("request_observed_unreadable");
+            Plugin.Global.Log.LogWarning($"[Skill Batch] {lastError}");
+            Notification.Popup("Skill capture", "Request observed, but unit_id was unreadable. Check the log.");
+            return;
+        }
+
+        observedRequestId = requestId;
+        requestEncoding = encoding;
+        var mode = Catalog.ObserveKnownRequestId(requestId);
+        waitingForNormalRequest = false;
+        lastError = mode == SkillBatchIdentifierMode.Unknown
+            ? $"Observed normal request ID {requestId}, but it matches neither known UnitList ID field."
+            : null;
+
+        WriteReport(mode == SkillBatchIdentifierMode.Unknown
+            ? "request_id_unrecognized"
+            : "passive_calibration_completed");
+
+        if (mode == SkillBatchIdentifierMode.Unknown)
+        {
+            Plugin.Global.Log.LogWarning($"[Skill Batch] {lastError} Encoding: {encoding}.");
+            Notification.Popup("Skill capture", $"Observed request ID {requestId}; check LogOutput.log.");
+            return;
+        }
+
+        Plugin.Global.Log.LogInfo(
+            $"[Skill Batch] Passive calibration completed: request ID {requestId}, " +
+            $"mode {mode}, encoding {encoding}. No active request was sent.");
+        Notification.Popup("Skill capture", $"Passive calibration completed: {mode}.");
+    }
+
     internal static void Toggle()
     {
-        if (running)
+        if (waitingForNormalRequest)
         {
-            Cancel("Cancelled by user.");
-            Notification.Popup("Skill capture", "Cancellation requested. The current request will finish first.");
-            return;
-        }
-
-        Start();
-    }
-
-    internal static void Update()
-    {
-        if (requestInFlight)
-        {
-            if (DateTime.UtcNow >= requestDeadlineUtc)
-            {
-                if (running)
-                {
-                    var error = $"Request {currentRequestId} timed out after 30 seconds.";
-                    if (calibrating)
-                    {
-                        FailCalibration(error);
-                    }
-                    else
-                    {
-                        CompleteCurrentRequest(false, error);
-                    }
-                }
-                else
-                {
-                    requestInFlight = false;
-                    currentRequestId = 0;
-                }
-            }
-            return;
-        }
-
-        if (!running || DateTime.UtcNow < nextRequestAtUtc)
-        {
-            return;
-        }
-
-        if (calibrating)
-        {
-            currentRequestId = calibrationAttemptMode == SkillBatchIdentifierMode.UserUnitId
-                ? calibrationUserUnitId
-                : calibrationMasterUnitId;
-            RequestOne(currentRequestId);
-            return;
-        }
-
-        if (Pending.Count == 0)
-        {
-            Finish();
-            return;
-        }
-
-        currentRequestId = Pending.Dequeue();
-        RequestOne(currentRequestId);
-    }
-
-    internal static void Shutdown()
-    {
-        if (running)
-        {
-            Cancel("Game is shutting down.");
-        }
-    }
-
-    private static void Start()
-    {
-        if (requestInFlight)
-        {
-            Notification.Popup("Skill capture", "Wait for the previous request to finish or time out.");
+            waitingForNormalRequest = false;
+            lastError = "Passive calibration cancelled by user.";
+            WriteReport("cancelled");
+            Notification.Popup("Skill capture", "Passive calibration cancelled.");
             return;
         }
 
@@ -159,266 +124,79 @@ internal static class SkillBatchCaptureService
             return;
         }
 
-        if (!TSKConfig.UiCaptureEnabled)
-        {
-            Notification.Popup("Skill capture", "uiCapture must be enabled before the game starts.");
-            Plugin.Global.Log.LogWarning("[Skill Batch] Start refused: uiCapture is disabled.");
-            return;
-        }
-
         if (Catalog.UnitCount == 0)
         {
             Notification.Popup("Skill capture", "No UnitList observed. Open the character list, then retry.");
-            Plugin.Global.Log.LogWarning("[Skill Batch] Start refused: no owned units have been cataloged.");
+            Plugin.Global.Log.LogWarning("[Skill Batch] Passive calibration refused: no UnitList observed.");
             return;
         }
 
-        Pending.Clear();
-        total = 0;
-        completed = 0;
-        succeeded = 0;
-        failed = 0;
-        currentRequestId = 0;
+        observedRequestId = 0;
+        requestEncoding = null;
         lastError = null;
-        startedAtUtc = DateTime.UtcNow;
-        nextRequestAtUtc = DateTime.UtcNow;
-        running = true;
-
-        if (Catalog.IdentifierMode != SkillBatchIdentifierMode.Unknown)
-        {
-            BeginBatch(0);
-            return;
-        }
-
-        if (!Catalog.TryGetCalibrationProbe(out calibrationUserUnitId, out calibrationMasterUnitId))
-        {
-            running = false;
-            lastError = "No owned unit with identifiable EX skills is available for automatic calibration.";
-            WriteReport("calibration_failed");
-            Notification.Popup("Skill capture", "Could not choose a safe unit for automatic ID calibration.");
-            Plugin.Global.Log.LogWarning($"[Skill Batch] {lastError}");
-            return;
-        }
-
-        calibrating = true;
-        calibrationAttemptMode = SkillBatchIdentifierMode.UserUnitId;
-        WriteReport("calibrating");
+        waitingForNormalRequest = true;
+        WriteReport("waiting_for_normal_request");
         Plugin.Global.Log.LogInfo(
-            $"[Skill Batch] Automatic ID calibration started with read-only probes " +
-            $"({calibrationUserUnitId}/{calibrationMasterUnitId}).");
-        Notification.Popup("Skill capture", "Automatic ID calibration started. Please wait.");
+            "[Skill Batch] Passive calibration armed. Open one EX skill enhancement page normally. " +
+            "The Mod will not send any request itself.");
+        Notification.Popup("Skill capture", "Open one EX skill enhancement page normally.");
     }
 
-    private static void RequestOne(int requestId)
+    internal static void Update()
     {
-        requestInFlight = true;
-        requestDeadlineUtc = DateTime.UtcNow.AddSeconds(30);
-        try
-        {
-            var request = new ExSkillStrengthenDataRequestEntity(requestId);
-            TKS.Network.HttpClient.Post<ExSkillStrengthenDataRequestEntity,
-                ExSkillStrengthenDataResultRepository>(
-                    ApiName.ExSkillStrengthenData, request, false, null, requestErrorCallback);
-            WriteReport(calibrating ? "calibrating" : "running");
-        }
-        catch (Exception exception)
-        {
-            var error = $"Request {requestId} threw: {exception.Message}";
-            if (calibrating)
-            {
-                FailCalibration(error);
-            }
-            else
-            {
-                CompleteCurrentRequest(false, error);
-            }
-        }
+        // Active network requests are intentionally disabled. Normal game traffic drives calibration.
     }
 
-    private static void ObserveRequestError()
+    internal static void Shutdown()
     {
-        if (!requestInFlight)
+        if (!waitingForNormalRequest)
         {
             return;
         }
 
-        var error = $"Request {currentRequestId} was rejected or failed before a formatted response was produced.";
-        if (!running)
-        {
-            requestInFlight = false;
-            currentRequestId = 0;
-            WriteReport("cancelled");
-            return;
-        }
-
-        if (calibrating)
-        {
-            CompleteCalibrationAttempt(false, error);
-        }
-        else
-        {
-            CompleteCurrentRequest(false, error);
-        }
-    }
-
-    private static void ObserveExSkillResponse(string formattedResponse)
-    {
-        if (!requestInFlight)
-        {
-            return;
-        }
-
-        if (!running)
-        {
-            requestInFlight = false;
-            currentRequestId = 0;
-            WriteReport("cancelled");
-            return;
-        }
-
-        if (calibrating)
-        {
-            var matchesExpectedUnit = Catalog.ResponseMatchesUnitSkills(
-                formattedResponse, calibrationUserUnitId);
-            CompleteCalibrationAttempt(matchesExpectedUnit,
-                matchesExpectedUnit
-                    ? null
-                    : $"Probe {calibrationAttemptMode} returned no matching EX skill data.");
-            return;
-        }
-
-        var valid = SkillBatchCatalog.HasExSkillDataResponse(formattedResponse);
-        CompleteCurrentRequest(valid,
-            valid ? null : $"Request {currentRequestId} returned no skill_data_list.");
-    }
-
-    private static void CompleteCalibrationAttempt(bool success, string error)
-    {
-        var successfulRequestId = currentRequestId;
-        requestInFlight = false;
-        currentRequestId = 0;
-
-        if (success)
-        {
-            if (!Catalog.SetIdentifierMode(calibrationAttemptMode))
-            {
-                FailCalibration("Automatic calibration produced a conflicting ID mode.");
-                return;
-            }
-
-            calibrating = false;
-            lastError = null;
-            Plugin.Global.Log.LogInfo(
-                $"[Skill Batch] Request ID mode automatically calibrated as {Catalog.IdentifierMode}.");
-            BeginBatch(successfulRequestId);
-            return;
-        }
-
-        lastError = error;
-        var fallbackMode = SkillBatchCatalog.GetFallbackModeAfterRequestError(
-            calibrationAttemptMode);
-        if (fallbackMode != SkillBatchIdentifierMode.Unknown)
-        {
-            Plugin.Global.Log.LogWarning(
-                $"[Skill Batch] {error} Retrying with {fallbackMode}.");
-            calibrationAttemptMode = fallbackMode;
-            nextRequestAtUtc = DateTime.UtcNow.AddMilliseconds(TSKConfig.SkillBatchDelayMilliseconds);
-            WriteReport("calibrating");
-            return;
-        }
-
-        FailCalibration(error);
-    }
-
-    private static void BeginBatch(int alreadyCapturedRequestId)
-    {
-        var requestIds = Catalog.BuildRequestIds();
-        if (requestIds.Count == 0)
-        {
-            FailCalibration("No safe request IDs are available after calibration.");
-            return;
-        }
-
-        Pending.Clear();
-        foreach (var requestId in requestIds)
-        {
-            if (requestId != alreadyCapturedRequestId)
-            {
-                Pending.Enqueue(requestId);
-            }
-        }
-
-        total = requestIds.Count;
-        completed = alreadyCapturedRequestId > 0 ? 1 : 0;
-        succeeded = completed;
-        failed = 0;
-        nextRequestAtUtc = DateTime.UtcNow.AddMilliseconds(TSKConfig.SkillBatchDelayMilliseconds);
-        WriteReport("running");
-
-        Plugin.Global.Log.LogInfo(
-            $"[Skill Batch] Started {total} read-only requests using {Catalog.IdentifierMode}; " +
-            $"delay: {TSKConfig.SkillBatchDelayMilliseconds} ms.");
-        Notification.Popup("Skill capture", $"Started: {total} units. Press F9 again to cancel.");
-    }
-
-    private static void FailCalibration(string error)
-    {
-        running = false;
-        calibrating = false;
-        requestInFlight = false;
-        currentRequestId = 0;
-        Pending.Clear();
-        lastError = error;
-        WriteReport("calibration_failed");
-        UiTextCaptureService.FlushNow();
-        Plugin.Global.Log.LogWarning($"[Skill Batch] Automatic ID calibration failed: {error}");
-        Notification.Popup("Skill capture", "Automatic ID calibration failed. Check LogOutput.log.");
-    }
-
-    private static void CompleteCurrentRequest(bool success, string error)
-    {
-        var requestId = currentRequestId;
-        completed++;
-        if (success)
-        {
-            succeeded++;
-            Plugin.Global.Log.LogInfo(
-                $"[Skill Batch] {completed}/{total} captured request ID {requestId}.");
-        }
-        else
-        {
-            failed++;
-            lastError = error;
-            Plugin.Global.Log.LogWarning($"[Skill Batch] {lastError}");
-        }
-
-        requestInFlight = false;
-        currentRequestId = 0;
-        nextRequestAtUtc = DateTime.UtcNow.AddMilliseconds(TSKConfig.SkillBatchDelayMilliseconds);
-        WriteReport(running ? "running" : "cancelled");
-    }
-
-    private static void Finish()
-    {
-        running = false;
-        calibrating = false;
-        WriteReport("completed");
-        UiTextCaptureService.FlushNow();
-
-        var text = $"Completed: {succeeded} succeeded, {failed} failed.";
-        Plugin.Global.Log.LogInfo($"[Skill Batch] {text} Report: {reportPath}");
-        Notification.Popup("Skill capture", text);
-    }
-
-    private static void Cancel(string reason)
-    {
-        running = false;
-        calibrating = false;
-        Pending.Clear();
-        lastError = reason;
+        waitingForNormalRequest = false;
+        lastError = "Game shut down while passive calibration was waiting.";
         WriteReport("cancelled");
-        UiTextCaptureService.FlushNow();
-        Plugin.Global.Log.LogInfo($"[Skill Batch] {reason}");
+    }
+
+    private static bool TryDecodeRequestId(string body, out int requestId, out string encoding)
+    {
+        if (SkillBatchCatalog.TryExtractRequestId(body, out requestId))
+        {
+            encoding = "plain-json";
+            return true;
+        }
+
+        foreach (var candidate in new[]
+                 {
+                     (Name: "http-key", Key: TKS.Network.HttpClient.key),
+                     (Name: "http-key2", Key: TKS.Network.HttpClient.key2)
+                 })
+        {
+            if (string.IsNullOrEmpty(candidate.Key))
+            {
+                continue;
+            }
+
+            try
+            {
+                var decoded = TKS.Network.HttpClient.Decrypt(body, candidate.Key);
+                if (SkillBatchCatalog.TryExtractRequestId(decoded, out requestId))
+                {
+                    encoding = candidate.Name;
+                    return true;
+                }
+            }
+            catch (Exception exception)
+            {
+                Plugin.Global.Log.LogDebug(
+                    $"[Skill Batch] Passive request decode with {candidate.Name} failed: {exception.Message}");
+            }
+        }
+
+        requestId = 0;
+        encoding = "unknown";
+        return false;
     }
 
     private static void WriteReport(string status)
@@ -430,19 +208,14 @@ internal static class SkillBatchCaptureService
 
         try
         {
-            var report = new BatchReport
+            var report = new PassiveCalibrationReport
             {
-                SchemaVersion = 1,
+                SchemaVersion = 2,
                 Status = status,
                 IdentifierMode = Catalog.IdentifierMode.ToString(),
-                StartedAtUtc = startedAtUtc == default ? null : startedAtUtc.ToString("O"),
                 UpdatedAtUtc = DateTime.UtcNow.ToString("O"),
-                Total = total,
-                Completed = completed,
-                Succeeded = succeeded,
-                Failed = failed,
-                Pending = Pending.Count,
-                CurrentRequestId = currentRequestId,
+                ObservedRequestId = observedRequestId,
+                RequestEncoding = requestEncoding,
                 LastError = lastError
             };
             File.WriteAllText(reportPath, JsonSerializer.Serialize(report, JsonOptions));
@@ -453,19 +226,14 @@ internal static class SkillBatchCaptureService
         }
     }
 
-    private sealed class BatchReport
+    private sealed class PassiveCalibrationReport
     {
         public int SchemaVersion { get; set; }
         public string Status { get; set; }
         public string IdentifierMode { get; set; }
-        public string StartedAtUtc { get; set; }
         public string UpdatedAtUtc { get; set; }
-        public int Total { get; set; }
-        public int Completed { get; set; }
-        public int Succeeded { get; set; }
-        public int Failed { get; set; }
-        public int Pending { get; set; }
-        public int CurrentRequestId { get; set; }
+        public int ObservedRequestId { get; set; }
+        public string RequestEncoding { get; set; }
         public string LastError { get; set; }
     }
 }

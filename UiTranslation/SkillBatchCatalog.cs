@@ -150,12 +150,23 @@ internal sealed class SkillBatchCatalog
         }
     }
 
-    internal static SkillBatchIdentifierMode GetFallbackModeAfterRequestError(
-        SkillBatchIdentifierMode attemptedMode)
+    internal static bool TryExtractRequestId(string requestBody, out int requestId)
     {
-        return attemptedMode == SkillBatchIdentifierMode.UserUnitId
-            ? SkillBatchIdentifierMode.MasterUnitId
-            : SkillBatchIdentifierMode.Unknown;
+        requestId = 0;
+        if (string.IsNullOrWhiteSpace(requestBody))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(requestBody);
+            return TryGetPositiveInt(document.RootElement, "unit_id", out requestId);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     internal IReadOnlyList<int> BuildRequestIds()
