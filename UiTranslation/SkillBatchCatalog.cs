@@ -150,6 +150,14 @@ internal sealed class SkillBatchCatalog
         }
     }
 
+    internal static SkillBatchIdentifierMode GetFallbackModeAfterRequestError(
+        SkillBatchIdentifierMode attemptedMode)
+    {
+        return attemptedMode == SkillBatchIdentifierMode.UserUnitId
+            ? SkillBatchIdentifierMode.MasterUnitId
+            : SkillBatchIdentifierMode.Unknown;
+    }
+
     internal IReadOnlyList<int> BuildRequestIds()
     {
         lock (sync)

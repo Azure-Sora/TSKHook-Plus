@@ -14,6 +14,7 @@ internal static class SkillBatchCaptureService
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     private static string reportPath;
+    private static Il2CppSystem.Action requestErrorCallback;
     private static bool running;
     private static bool requestInFlight;
     private static bool calibrating;
@@ -37,6 +38,7 @@ internal static class SkillBatchCaptureService
         var directory = Path.Combine(Paths.PluginPath, "TSKHook", "ui_capture");
         Directory.CreateDirectory(directory);
         reportPath = Path.Combine(directory, "skill_batch_report.json");
+        requestErrorCallback = (System.Action)ObserveRequestError;
 
         Plugin.Global.Log.LogInfo(
             $"[Skill Batch] {(TSKConfig.SkillBatchCaptureEnabled ? "Available" : "Disabled")}. " +
@@ -215,7 +217,8 @@ internal static class SkillBatchCaptureService
         {
             var request = new ExSkillStrengthenDataRequestEntity(requestId);
             TKS.Network.HttpClient.Post<ExSkillStrengthenDataRequestEntity,
-                ExSkillStrengthenDataResultRepository>(ApiName.ExSkillStrengthenData, request, false);
+                ExSkillStrengthenDataResultRepository>(
+                    ApiName.ExSkillStrengthenData, request, false, null, requestErrorCallback);
             WriteReport(calibrating ? "calibrating" : "running");
         }
         catch (Exception exception)
@@ -229,6 +232,32 @@ internal static class SkillBatchCaptureService
             {
                 CompleteCurrentRequest(false, error);
             }
+        }
+    }
+
+    private static void ObserveRequestError()
+    {
+        if (!requestInFlight)
+        {
+            return;
+        }
+
+        var error = $"Request {currentRequestId} was rejected or failed before a formatted response was produced.";
+        if (!running)
+        {
+            requestInFlight = false;
+            currentRequestId = 0;
+            WriteReport("cancelled");
+            return;
+        }
+
+        if (calibrating)
+        {
+            CompleteCalibrationAttempt(false, error);
+        }
+        else
+        {
+            CompleteCurrentRequest(false, error);
         }
     }
 
@@ -286,11 +315,13 @@ internal static class SkillBatchCaptureService
         }
 
         lastError = error;
-        if (calibrationAttemptMode == SkillBatchIdentifierMode.UserUnitId)
+        var fallbackMode = SkillBatchCatalog.GetFallbackModeAfterRequestError(
+            calibrationAttemptMode);
+        if (fallbackMode != SkillBatchIdentifierMode.Unknown)
         {
             Plugin.Global.Log.LogWarning(
-                $"[Skill Batch] {error} Retrying with MasterUnitId.");
-            calibrationAttemptMode = SkillBatchIdentifierMode.MasterUnitId;
+                $"[Skill Batch] {error} Retrying with {fallbackMode}.");
+            calibrationAttemptMode = fallbackMode;
             nextRequestAtUtc = DateTime.UtcNow.AddMilliseconds(TSKConfig.SkillBatchDelayMilliseconds);
             WriteReport("calibrating");
             return;

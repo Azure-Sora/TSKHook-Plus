@@ -115,6 +115,19 @@ if (!automaticCatalog.SetIdentifierMode(SkillBatchIdentifierMode.MasterUnitId) |
 
 Console.WriteLine("PASS: automatic skill batch ID probe, response matching, and mode commit cases");
 
+if (SkillBatchCatalog.GetFallbackModeAfterRequestError(SkillBatchIdentifierMode.UserUnitId) !=
+        SkillBatchIdentifierMode.MasterUnitId ||
+    SkillBatchCatalog.GetFallbackModeAfterRequestError(SkillBatchIdentifierMode.MasterUnitId) !=
+        SkillBatchIdentifierMode.Unknown ||
+    SkillBatchCatalog.GetFallbackModeAfterRequestError(SkillBatchIdentifierMode.Unknown) !=
+        SkillBatchIdentifierMode.Unknown)
+{
+    Console.Error.WriteLine("FAIL automatic calibration request-error fallback sequence");
+    return 1;
+}
+
+Console.WriteLine("PASS: automatic calibration request-error fallback sequence");
+
 if (!SkillBatchCatalog.HasExSkillDataResponse(
         "{\"result\":{\"skill_data_list\":[{\"ex_skill_id\":1001}]}}") ||
     SkillBatchCatalog.HasExSkillDataResponse("{\"result\":{\"skill_data_list\":[]}}") ||
