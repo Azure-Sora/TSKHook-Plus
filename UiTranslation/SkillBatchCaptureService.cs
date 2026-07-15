@@ -16,6 +16,10 @@ internal static class SkillBatchCaptureService
     private static string reportPath;
     private static bool running;
     private static bool requestInFlight;
+    private static bool calibrating;
+    private static SkillBatchIdentifierMode calibrationAttemptMode;
+    private static int calibrationUserUnitId;
+    private static int calibrationMasterUnitId;
     private static int total;
     private static int completed;
     private static int succeeded;
@@ -67,25 +71,6 @@ internal static class SkillBatchCaptureService
         }
     }
 
-    internal static void ObserveExSkillRequestId(int requestId)
-    {
-        if (running && requestInFlight && requestId != currentRequestId)
-        {
-            Cancel($"Stopped because another EX skill request ({requestId}) overlapped the batch.");
-            Notification.Popup("Skill capture", "Stopped: another EX skill request overlapped the batch.");
-            return;
-        }
-
-        var previous = Catalog.IdentifierMode;
-        var current = Catalog.ObserveKnownRequestId(requestId);
-        if (previous == SkillBatchIdentifierMode.Unknown && current != SkillBatchIdentifierMode.Unknown)
-        {
-            Plugin.Global.Log.LogInfo(
-                $"[Skill Batch] Request ID mode calibrated as {current} from normal game traffic.");
-            Notification.Popup("Skill capture", "ID calibration completed. Press F9 to start batch capture.");
-        }
-    }
-
     internal static void Toggle()
     {
         if (running)
@@ -106,7 +91,15 @@ internal static class SkillBatchCaptureService
             {
                 if (running)
                 {
-                    CompleteCurrentRequest(false, $"Request {currentRequestId} timed out after 30 seconds.");
+                    var error = $"Request {currentRequestId} timed out after 30 seconds.";
+                    if (calibrating)
+                    {
+                        FailCalibration(error);
+                    }
+                    else
+                    {
+                        CompleteCurrentRequest(false, error);
+                    }
                 }
                 else
                 {
@@ -119,6 +112,15 @@ internal static class SkillBatchCaptureService
 
         if (!running || DateTime.UtcNow < nextRequestAtUtc)
         {
+            return;
+        }
+
+        if (calibrating)
+        {
+            currentRequestId = calibrationAttemptMode == SkillBatchIdentifierMode.UserUnitId
+                ? calibrationUserUnitId
+                : calibrationMasterUnitId;
+            RequestOne(currentRequestId);
             return;
         }
 
@@ -169,27 +171,8 @@ internal static class SkillBatchCaptureService
             return;
         }
 
-        if (Catalog.IdentifierMode == SkillBatchIdentifierMode.Unknown)
-        {
-            Notification.Popup("Skill capture", "Open any EX skill enhancement page once for ID calibration.");
-            Plugin.Global.Log.LogWarning("[Skill Batch] Start refused: request ID mode is not calibrated.");
-            return;
-        }
-
-        var requestIds = Catalog.BuildRequestIds();
-        if (requestIds.Count == 0)
-        {
-            Notification.Popup("Skill capture", "No safe request IDs are available.");
-            return;
-        }
-
         Pending.Clear();
-        foreach (var requestId in requestIds)
-        {
-            Pending.Enqueue(requestId);
-        }
-
-        total = requestIds.Count;
+        total = 0;
         completed = 0;
         succeeded = 0;
         failed = 0;
@@ -198,12 +181,30 @@ internal static class SkillBatchCaptureService
         startedAtUtc = DateTime.UtcNow;
         nextRequestAtUtc = DateTime.UtcNow;
         running = true;
-        WriteReport("running");
 
+        if (Catalog.IdentifierMode != SkillBatchIdentifierMode.Unknown)
+        {
+            BeginBatch(0);
+            return;
+        }
+
+        if (!Catalog.TryGetCalibrationProbe(out calibrationUserUnitId, out calibrationMasterUnitId))
+        {
+            running = false;
+            lastError = "No owned unit with identifiable EX skills is available for automatic calibration.";
+            WriteReport("calibration_failed");
+            Notification.Popup("Skill capture", "Could not choose a safe unit for automatic ID calibration.");
+            Plugin.Global.Log.LogWarning($"[Skill Batch] {lastError}");
+            return;
+        }
+
+        calibrating = true;
+        calibrationAttemptMode = SkillBatchIdentifierMode.UserUnitId;
+        WriteReport("calibrating");
         Plugin.Global.Log.LogInfo(
-            $"[Skill Batch] Started {total} read-only requests using {Catalog.IdentifierMode}; " +
-            $"delay: {TSKConfig.SkillBatchDelayMilliseconds} ms.");
-        Notification.Popup("Skill capture", $"Started: {total} units. Press F9 again to cancel.");
+            $"[Skill Batch] Automatic ID calibration started with read-only probes " +
+            $"({calibrationUserUnitId}/{calibrationMasterUnitId}).");
+        Notification.Popup("Skill capture", "Automatic ID calibration started. Please wait.");
     }
 
     private static void RequestOne(int requestId)
@@ -215,11 +216,19 @@ internal static class SkillBatchCaptureService
             var request = new ExSkillStrengthenDataRequestEntity(requestId);
             TKS.Network.HttpClient.Post<ExSkillStrengthenDataRequestEntity,
                 ExSkillStrengthenDataResultRepository>(ApiName.ExSkillStrengthenData, request, false);
-            WriteReport("running");
+            WriteReport(calibrating ? "calibrating" : "running");
         }
         catch (Exception exception)
         {
-            CompleteCurrentRequest(false, $"Request {requestId} threw: {exception.Message}");
+            var error = $"Request {requestId} threw: {exception.Message}";
+            if (calibrating)
+            {
+                FailCalibration(error);
+            }
+            else
+            {
+                CompleteCurrentRequest(false, error);
+            }
         }
     }
 
@@ -238,9 +247,101 @@ internal static class SkillBatchCaptureService
             return;
         }
 
+        if (calibrating)
+        {
+            var matchesExpectedUnit = Catalog.ResponseMatchesUnitSkills(
+                formattedResponse, calibrationUserUnitId);
+            CompleteCalibrationAttempt(matchesExpectedUnit,
+                matchesExpectedUnit
+                    ? null
+                    : $"Probe {calibrationAttemptMode} returned no matching EX skill data.");
+            return;
+        }
+
         var valid = SkillBatchCatalog.HasExSkillDataResponse(formattedResponse);
         CompleteCurrentRequest(valid,
             valid ? null : $"Request {currentRequestId} returned no skill_data_list.");
+    }
+
+    private static void CompleteCalibrationAttempt(bool success, string error)
+    {
+        var successfulRequestId = currentRequestId;
+        requestInFlight = false;
+        currentRequestId = 0;
+
+        if (success)
+        {
+            if (!Catalog.SetIdentifierMode(calibrationAttemptMode))
+            {
+                FailCalibration("Automatic calibration produced a conflicting ID mode.");
+                return;
+            }
+
+            calibrating = false;
+            lastError = null;
+            Plugin.Global.Log.LogInfo(
+                $"[Skill Batch] Request ID mode automatically calibrated as {Catalog.IdentifierMode}.");
+            BeginBatch(successfulRequestId);
+            return;
+        }
+
+        lastError = error;
+        if (calibrationAttemptMode == SkillBatchIdentifierMode.UserUnitId)
+        {
+            Plugin.Global.Log.LogWarning(
+                $"[Skill Batch] {error} Retrying with MasterUnitId.");
+            calibrationAttemptMode = SkillBatchIdentifierMode.MasterUnitId;
+            nextRequestAtUtc = DateTime.UtcNow.AddMilliseconds(TSKConfig.SkillBatchDelayMilliseconds);
+            WriteReport("calibrating");
+            return;
+        }
+
+        FailCalibration(error);
+    }
+
+    private static void BeginBatch(int alreadyCapturedRequestId)
+    {
+        var requestIds = Catalog.BuildRequestIds();
+        if (requestIds.Count == 0)
+        {
+            FailCalibration("No safe request IDs are available after calibration.");
+            return;
+        }
+
+        Pending.Clear();
+        foreach (var requestId in requestIds)
+        {
+            if (requestId != alreadyCapturedRequestId)
+            {
+                Pending.Enqueue(requestId);
+            }
+        }
+
+        total = requestIds.Count;
+        completed = alreadyCapturedRequestId > 0 ? 1 : 0;
+        succeeded = completed;
+        failed = 0;
+        nextRequestAtUtc = DateTime.UtcNow.AddMilliseconds(TSKConfig.SkillBatchDelayMilliseconds);
+        WriteReport("running");
+
+        Plugin.Global.Log.LogInfo(
+            $"[Skill Batch] Started {total} read-only requests using {Catalog.IdentifierMode}; " +
+            $"delay: {TSKConfig.SkillBatchDelayMilliseconds} ms.");
+        Notification.Popup("Skill capture", $"Started: {total} units. Press F9 again to cancel.");
+    }
+
+    private static void FailCalibration(string error)
+    {
+        running = false;
+        calibrating = false;
+        requestInFlight = false;
+        currentRequestId = 0;
+        Pending.Clear();
+        lastError = error;
+        WriteReport("calibration_failed");
+        UiTextCaptureService.FlushNow();
+        Plugin.Global.Log.LogWarning($"[Skill Batch] Automatic ID calibration failed: {error}");
+        Notification.Popup("Skill capture", "Automatic ID calibration failed. Check LogOutput.log.");
     }
 
     private static void CompleteCurrentRequest(bool success, string error)
@@ -269,6 +370,7 @@ internal static class SkillBatchCaptureService
     private static void Finish()
     {
         running = false;
+        calibrating = false;
         WriteReport("completed");
         UiTextCaptureService.FlushNow();
 
@@ -280,6 +382,7 @@ internal static class SkillBatchCaptureService
     private static void Cancel(string reason)
     {
         running = false;
+        calibrating = false;
         Pending.Clear();
         lastError = reason;
         WriteReport("cancelled");

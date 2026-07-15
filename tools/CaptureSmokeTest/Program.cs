@@ -81,6 +81,40 @@ if (ambiguousCatalog.ObserveKnownRequestId(3001) != SkillBatchIdentifierMode.Unk
 
 Console.WriteLine("PASS: skill batch catalog parse, dedupe, calibration, and fail-closed cases");
 
+var automaticCatalog = new SkillBatchCatalog();
+automaticCatalog.ObserveUnitList(
+    "{\"result\":{\"unit_list\":[" +
+    "{\"u_unit_id\":9102,\"unit_id\":1102,\"skill_data\":[{\"skill_id\":11021},{\"skill_id\":11022}]}," +
+    "{\"u_unit_id\":9101,\"unit_id\":1101,\"skill_data\":[{\"skill_id\":11011}]}]}}");
+
+if (!automaticCatalog.TryGetCalibrationProbe(out var probeUserId, out var probeMasterId) ||
+    probeUserId != 9101 || probeMasterId != 1101)
+{
+    Console.Error.WriteLine(
+        $"FAIL automatic calibration probe selection: user={probeUserId}, master={probeMasterId}");
+    return 1;
+}
+
+if (!automaticCatalog.ResponseMatchesUnitSkills(
+        "{\"result\":{\"skill_data_list\":[{\"ex_skill_id\":11011}]}}", probeUserId) ||
+    automaticCatalog.ResponseMatchesUnitSkills(
+        "{\"result\":{\"skill_data_list\":[{\"ex_skill_id\":11021}]}}", probeUserId) ||
+    automaticCatalog.ResponseMatchesUnitSkills("not-json", probeUserId))
+{
+    Console.Error.WriteLine("FAIL automatic calibration response matching");
+    return 1;
+}
+
+if (!automaticCatalog.SetIdentifierMode(SkillBatchIdentifierMode.MasterUnitId) ||
+    automaticCatalog.SetIdentifierMode(SkillBatchIdentifierMode.UserUnitId) ||
+    !automaticCatalog.BuildRequestIds().SequenceEqual(new[] { 1101, 1102 }))
+{
+    Console.Error.WriteLine("FAIL automatic calibration mode commit/conflict handling");
+    return 1;
+}
+
+Console.WriteLine("PASS: automatic skill batch ID probe, response matching, and mode commit cases");
+
 if (!SkillBatchCatalog.HasExSkillDataResponse(
         "{\"result\":{\"skill_data_list\":[{\"ex_skill_id\":1001}]}}") ||
     SkillBatchCatalog.HasExSkillDataResponse("{\"result\":{\"skill_data_list\":[]}}") ||

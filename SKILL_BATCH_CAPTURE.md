@@ -30,17 +30,16 @@ BepInEx/plugins/TSKHook/ui_translations.jsonl
 ## 使用步骤
 
 1. 登录游戏并进入角色列表一次。日志出现 `[Skill Batch] Cataloged ... owned units` 表示角色 ID 已收集。
-2. 随便选择一个拥有 EX 技能强化入口的角色，正常打开一次 EX 技能强化页面。
-3. 等待提示 `ID calibration completed`。这一步让 Mod 使用游戏真实传入的 ID 类型，避免猜错请求参数。
-4. 离开 EX 技能强化页面，按 `F9` 开始批量采集。
-5. 批采期间不要再次打开 EX 技能页面，也不要切换账号。日志会依次显示 `1/N`、`2/N` 等进度。
-6. 完成后会弹出成功/失败数量。需要中途停止时再次按 `F9`；正在进行的单个请求会先结束或在 30 秒后超时。
+2. 按 `F9`。Mod 会先用最多两次只读请求自动判断接口需要 `u_unit_id` 还是 `unit_id`，不再需要手动进入 EX 技能强化页面校准。
+3. 等待提示 `Started: ... units`，表示自动校准已完成并进入正式采集队列。
+4. 批采期间不要打开 EX 技能页面，也不要切换账号。日志会依次显示 `1/N`、`2/N` 等进度。
+5. 完成后会弹出成功/失败数量。需要中途停止时再次按 `F9`；正在进行的单个请求会先结束或在 30 秒后超时。
 
 如果 F9 被拒绝，请按弹窗处理：
 
 - `Disabled in config.json`：启用 `skillBatchCapture` 后重启。
 - `No UnitList observed`：先打开角色列表。
-- `Open any EX skill enhancement page once`：先完成第 2–3 步校准。
+- `Automatic ID calibration failed`：查看 `LogOutput.log`；通常表示两种只读 ID 请求都没有返回与目标角色匹配的技能数据。
 - `uiCapture must be enabled`：启用 `uiCapture` 后重启。
 
 ## 输出文件

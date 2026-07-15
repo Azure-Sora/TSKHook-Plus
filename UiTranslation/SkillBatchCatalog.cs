@@ -15,7 +15,7 @@ internal enum SkillBatchIdentifierMode
 internal sealed class SkillBatchCatalog
 {
     private readonly object sync = new();
-    private readonly Dictionary<int, int> unitsByUserId = new();
+    private readonly Dictionary<int, UnitRecord> unitsByUserId = new();
 
     internal SkillBatchIdentifierMode IdentifierMode { get; private set; }
 
@@ -61,7 +61,20 @@ internal sealed class SkillBatchCatalog
                     added++;
                 }
 
-                unitsByUserId[userUnitId] = masterUnitId;
+                var skillIds = new HashSet<int>();
+                if (unit.TryGetProperty("skill_data", out var skillData) &&
+                    skillData.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var skill in skillData.EnumerateArray())
+                    {
+                        if (TryGetPositiveInt(skill, "skill_id", out var skillId))
+                        {
+                            skillIds.Add(skillId);
+                        }
+                    }
+                }
+
+                unitsByUserId[userUnitId] = new UnitRecord(masterUnitId, skillIds);
             }
         }
 
@@ -83,7 +96,7 @@ internal sealed class SkillBatchCatalog
             }
 
             var matchesUserId = unitsByUserId.ContainsKey(requestId);
-            var matchesMasterId = unitsByUserId.Values.Contains(requestId);
+            var matchesMasterId = unitsByUserId.Values.Any(unit => unit.MasterUnitId == requestId);
 
             if (matchesUserId ^ matchesMasterId)
             {
@@ -96,6 +109,47 @@ internal sealed class SkillBatchCatalog
         }
     }
 
+    internal bool TryGetCalibrationProbe(out int userUnitId, out int masterUnitId)
+    {
+        lock (sync)
+        {
+            var candidate = unitsByUserId
+                .Where(pair => pair.Key != pair.Value.MasterUnitId && pair.Value.SkillIds.Count > 0)
+                .OrderBy(pair => pair.Key)
+                .FirstOrDefault();
+
+            if (candidate.Value == null)
+            {
+                userUnitId = 0;
+                masterUnitId = 0;
+                return false;
+            }
+
+            userUnitId = candidate.Key;
+            masterUnitId = candidate.Value.MasterUnitId;
+            return true;
+        }
+    }
+
+    internal bool SetIdentifierMode(SkillBatchIdentifierMode mode)
+    {
+        if (mode == SkillBatchIdentifierMode.Unknown)
+        {
+            return false;
+        }
+
+        lock (sync)
+        {
+            if (IdentifierMode != SkillBatchIdentifierMode.Unknown && IdentifierMode != mode)
+            {
+                return false;
+            }
+
+            IdentifierMode = mode;
+            return true;
+        }
+    }
+
     internal IReadOnlyList<int> BuildRequestIds()
     {
         lock (sync)
@@ -103,9 +157,55 @@ internal sealed class SkillBatchCatalog
             return IdentifierMode switch
             {
                 SkillBatchIdentifierMode.UserUnitId => unitsByUserId.Keys.OrderBy(value => value).ToArray(),
-                SkillBatchIdentifierMode.MasterUnitId => unitsByUserId.Values.Distinct().OrderBy(value => value).ToArray(),
+                SkillBatchIdentifierMode.MasterUnitId => unitsByUserId.Values
+                    .Select(unit => unit.MasterUnitId).Distinct().OrderBy(value => value).ToArray(),
                 _ => Array.Empty<int>()
             };
+        }
+    }
+
+    internal bool ResponseMatchesUnitSkills(string formattedResponse, int userUnitId)
+    {
+        HashSet<int> expectedSkillIds;
+        lock (sync)
+        {
+            if (!unitsByUserId.TryGetValue(userUnitId, out var unit) || unit.SkillIds.Count == 0)
+            {
+                return false;
+            }
+
+            expectedSkillIds = new HashSet<int>(unit.SkillIds);
+        }
+
+        if (string.IsNullOrWhiteSpace(formattedResponse))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(formattedResponse);
+            if (!document.RootElement.TryGetProperty("result", out var result) ||
+                !result.TryGetProperty("skill_data_list", out var skillDataList) ||
+                skillDataList.ValueKind != JsonValueKind.Array)
+            {
+                return false;
+            }
+
+            foreach (var skill in skillDataList.EnumerateArray())
+            {
+                if (TryGetPositiveInt(skill, "ex_skill_id", out var skillId) &&
+                    expectedSkillIds.Contains(skillId))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        catch (JsonException)
+        {
+            return false;
         }
     }
 
@@ -145,5 +245,17 @@ internal sealed class SkillBatchCatalog
 
         return property.ValueKind == JsonValueKind.String &&
                int.TryParse(property.GetString(), out value) && value > 0;
+    }
+
+    private sealed class UnitRecord
+    {
+        internal UnitRecord(int masterUnitId, HashSet<int> skillIds)
+        {
+            MasterUnitId = masterUnitId;
+            SkillIds = skillIds;
+        }
+
+        internal int MasterUnitId { get; }
+        internal HashSet<int> SkillIds { get; }
     }
 }
