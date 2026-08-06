@@ -18,6 +18,65 @@ internal static class UiTextKeyBuilder
         context ??= new Dictionary<string, string>(StringComparer.Ordinal);
         var field = path[(path.LastIndexOf('.') + 1)..].Replace("[]", "", StringComparison.Ordinal);
 
+        if (field is "limit_date_text" or "limit_time")
+        {
+            var category = path.Contains("mission", StringComparison.OrdinalIgnoreCase)
+                ? "mission"
+                : path.Contains("product", StringComparison.OrdinalIgnoreCase) ||
+                  context.ContainsKey("product_id")
+                    ? "shop"
+                    : "misc";
+            return CreateWithSourceHash(category, field, sourceHash, context,
+                ("mission_type", false), ("mission_group_id", false), ("mission_id", false),
+                ("shop_id", false), ("product_id", false));
+        }
+
+        if ((path.Contains("campaign_list", StringComparison.OrdinalIgnoreCase) || field == "dialogue") &&
+            !context.ContainsKey("id"))
+        {
+            return CreateWithSourceHash("misc", field, sourceHash, context,
+                ("event_id", false), ("shop_id", false));
+        }
+
+        if (path.Contains("enemy_list", StringComparison.OrdinalIgnoreCase) &&
+            field is "character_name" or "unit_name" or "unit_detail")
+        {
+            return CreateWithSourceHash("misc", field, sourceHash, context, ("stage_id", false));
+        }
+
+        if (path.Contains("tab_stage_data", StringComparison.OrdinalIgnoreCase) && field == "tab_name")
+        {
+            return CreateWithSourceHash("misc", field, sourceHash, context,
+                ("event_id", false), ("quest_id", false), ("shop_id", false));
+        }
+
+        if (path.Contains("voice_list", StringComparison.OrdinalIgnoreCase) &&
+            context.ContainsKey("unit_id") && context.ContainsKey("voice_id") &&
+            field is "voice_name" or "unlock_condition")
+        {
+            return Create("unit", field, context, ("unit_id", true), ("voice_id", true));
+        }
+
+        if ((path.Contains("voice_list", StringComparison.OrdinalIgnoreCase) ||
+             path.Contains("direction_list", StringComparison.OrdinalIgnoreCase)) &&
+            context.ContainsKey("unit_id") && field == "unlock_condition")
+        {
+            return CreateWithSourceHash("unit", field, sourceHash, context, ("unit_id", true));
+        }
+
+        if (path.Contains("trade_list", StringComparison.OrdinalIgnoreCase) &&
+            context.ContainsKey("trade_id") && field is "button_name" or "button_detail")
+        {
+            return Create("shop", field, context, ("gacha_id", false), ("trade_id", true));
+        }
+
+        if (path.Contains("stage_rank_condition_list", StringComparison.OrdinalIgnoreCase) &&
+            context.ContainsKey("stage_id") && context.ContainsKey("condition_type"))
+        {
+            return CreateWithSourceHash("mission", field, sourceHash, context,
+                ("stage_id", true), ("condition_type", true));
+        }
+
         if (field.StartsWith("exclusive_unit_", StringComparison.OrdinalIgnoreCase) &&
             context.ContainsKey("exclusive_unit_id"))
         {
@@ -27,7 +86,8 @@ internal static class UiTextKeyBuilder
         if (field is "unit_name" or "character_name" or "character_name_kana" or "full_name" &&
             context.ContainsKey("unit_id"))
         {
-            return Create("unit", field, context, ("unit_id", true), ("character_id", false));
+            return Create("unit", field, context, ("unit_id", true), ("character_id", false),
+                ("unit_illust_id", false), ("unit_view_type", false));
         }
 
         if (context.TryGetValue("item_id", out var itemId) &&
@@ -73,12 +133,17 @@ internal static class UiTextKeyBuilder
 
         if (context.ContainsKey("skill_id") && path.Contains("skill", StringComparison.OrdinalIgnoreCase))
         {
-            return Create("skill", field, context,
-                ("skill_data_type", false), ("skill_id", true), ("lv", false), ("unit_id", false));
+            return CreateSkill(field, context);
         }
 
         if (context.ContainsKey("mission_id") || path.Contains("mission", StringComparison.OrdinalIgnoreCase))
         {
+            if (!context.ContainsKey("mission_type") && !context.ContainsKey("mission_group_id") &&
+                !context.ContainsKey("mission_id") && !context.ContainsKey("id"))
+            {
+                return CreateWithSourceHash("mission", field, sourceHash, context);
+            }
+
             return Create("mission", field, context, ("mission_type", false), ("mission_group_id", false),
                 ("mission_id", false), ("id", false));
         }
@@ -131,6 +196,35 @@ internal static class UiTextKeyBuilder
             _ => field
         };
         return FromIdentity("skill", normalizedField, identity, null);
+    }
+
+    private static UiTextKeyDescriptor CreateSkill(string field,
+        IReadOnlyDictionary<string, string> context)
+    {
+        var identity = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        foreach (var name in new[] { "skill_data_type", "lv", "unit_id" })
+        {
+            if (context.TryGetValue(name, out var value))
+            {
+                identity[name] = value;
+            }
+        }
+
+        var skillId = context.TryGetValue("skill_id", out var capturedSkillId)
+            ? capturedSkillId
+            : null;
+        if ((string.IsNullOrEmpty(skillId) || skillId == "-1") &&
+            context.TryGetValue("m_skill_id", out var masterSkillId) &&
+            !string.IsNullOrEmpty(masterSkillId) && masterSkillId != "-1")
+        {
+            identity["m_skill_id"] = masterSkillId;
+        }
+        else
+        {
+            identity["skill_id"] = string.IsNullOrEmpty(skillId) ? "missing" : skillId;
+        }
+
+        return FromIdentity("skill", field, identity, null);
     }
 
     private static UiTextKeyDescriptor CreateSisterSkill(string field, string path,
@@ -197,6 +291,17 @@ internal static class UiTextKeyBuilder
             }
         }
 
+        return FromIdentity(category, field, identity, null);
+    }
+
+    private static UiTextKeyDescriptor CreateWithSourceHash(string category, string field, string sourceHash,
+        IReadOnlyDictionary<string, string> context, params (string Name, bool Required)[] fields)
+    {
+        var descriptor = Create(category, field, context, fields);
+        var identity = new SortedDictionary<string, string>(descriptor.Identity, StringComparer.Ordinal)
+        {
+            ["source_hash"] = sourceHash[..Math.Min(12, sourceHash.Length)]
+        };
         return FromIdentity(category, field, identity, null);
     }
 

@@ -207,6 +207,14 @@ static int RunSelfTest()
         ApplyPreviousTranslation(fresh, previousLoad.Entries);
 
         var partialEntries = new List<SourceEntry> { fresh };
+        previousLoad.Entries["obsolete-conflict"] = new SourceEntry
+        {
+            Key = "obsolete-conflict", SourceHash = "hash-conflict", Translation = "", Status = "conflict"
+        };
+        previousLoad.Entries["obsolete-rekey"] = new SourceEntry
+        {
+            Key = "obsolete-rekey", SourceHash = "hash-fresh", Translation = "旧键译文", Status = "translated"
+        };
         var preservedEntries = AppendMissingPreviousEntries(partialEntries, previousLoad.Entries);
 
         var duplicatePath = Path.Combine(categoryDirectory, "misc.jsonl");
@@ -247,14 +255,31 @@ static int RunSelfTest()
         var exSkillItem = BuildKey(TestRecord("ExSkillStrengthenData",
             "$.result.skill_data_list[].mtrl_list[].detail", "技能材料",
             ("ex_skill_id", "10070011"), ("ex_skill_lv", "9"), ("item_id", "10004")));
+        var voiceName = BuildKey(TestRecord("PictureBookList",
+            "$.result.unit_book_list[].unit_list[].voice_list[].voice_name", "标题语音",
+            ("unit_id", "1001001"), ("voice_id", "vo_c1001001_0001")));
+        var battleSkill = BuildKey(TestRecord("BattleStart",
+            "$.result.player_unit_list[].skill_data[].detail", "战斗技能",
+            ("skill_id", "-1"), ("m_skill_id", "102700116"), ("skill_data_type", "1"),
+            ("lv", "7"), ("unit_id", "1027001")));
+        var voiceUnlock = BuildKey(TestRecord("PictureBookList",
+            "$.result.unit_book_list[].unit_list[].voice_list[].unlock_condition", "解锁条件",
+            ("unit_id", "1001001")));
+        var gachaButton = BuildKey(TestRecord("GachaList",
+            "$.result.gacha_list[].trade_list[].button_name", "抽取十次",
+            ("gacha_id", "321"), ("trade_id", "32102")));
+        var stageRank = BuildKey(TestRecord("StoryEventStageDetail",
+            "$.result.stage_rank_condition_list[].detail", "三星条件",
+            ("stage_id", "200043120"), ("condition_type", "15")));
 
         var passed = previousLoad.Errors.Count == 0 &&
                      same.Translation == "分类译文" && same.Status == "reviewed" &&
                      cleared.Translation == "" && cleared.Status == "new" &&
                      changed.Translation == "旧译文" && changed.Status == "stale" &&
                      changed.PreviousSourceHash == "hash-old" &&
-                     fresh.Translation == "" && fresh.Status == "new" &&
+                     fresh.Translation == "旧键译文" && fresh.Status == "translated" &&
                      preservedEntries == 3 && partialEntries.Count == 4 &&
+                     partialEntries.All(entry => entry.Key != "obsolete-conflict") &&
                      partialEntries.Any(entry => entry.Key == "same" &&
                          entry.Translation == "分类译文" && entry.Status == "reviewed") &&
                      partialEntries.Any(entry => entry.Key == "cleared" &&
@@ -269,6 +294,15 @@ static int RunSelfTest()
                      exSkillLevel10.Category == "skill" && exSkillLevel10.Field == "skill_name" &&
                      exSkillLevel10.Key == "skill:lv=10:skill_id=10070011:skill_name" &&
                      exSkillItem.Category == "item";
+        passed = passed &&
+                 voiceName.Key == "unit:unit_id=1001001:voice_id=vo_c1001001_0001:voice_name" &&
+                 battleSkill.Key ==
+                 "skill:lv=7:m_skill_id=102700116:skill_data_type=1:unit_id=1027001:detail" &&
+                 voiceUnlock.Key.StartsWith("unit:source_hash=", StringComparison.Ordinal) &&
+                 voiceUnlock.Key.EndsWith(":unit_id=1001001:unlock_condition", StringComparison.Ordinal) &&
+                 gachaButton.Key == "shop:gacha_id=321:trade_id=32102:button_name" &&
+                 stageRank.Key.StartsWith("mission:condition_type=15:source_hash=", StringComparison.Ordinal) &&
+                 stageRank.Key.EndsWith(":stage_id=200043120:detail", StringComparison.Ordinal);
         Console.WriteLine(passed
             ? "PASS: category overlay, safe validation, merge behavior and context-sensitive stable keys"
             : "FAIL: category overlay, safe validation, merge behavior or context-sensitive stable keys");
@@ -395,10 +429,59 @@ static int AppendMissingPreviousEntries(
     ICollection<SourceEntry> entries,
     IReadOnlyDictionary<string, SourceEntry> previousEntries)
 {
+    var reusableBySourceHash = previousEntries.Values
+        .Where(entry => !string.IsNullOrEmpty(entry.SourceHash) &&
+                        !string.IsNullOrEmpty(entry.Translation) &&
+                        !string.Equals(entry.Status, "conflict", StringComparison.Ordinal))
+        .GroupBy(entry => entry.SourceHash, StringComparer.Ordinal)
+        .Select(group => new
+        {
+            SourceHash = group.Key,
+            Translations = group.Select(entry => entry.Translation).Distinct(StringComparer.Ordinal).ToArray(),
+            Status = group.Any(entry => string.Equals(entry.Status, "verified", StringComparison.OrdinalIgnoreCase))
+                ? "verified"
+                : group.Any(entry => string.Equals(entry.Status, "reviewed", StringComparison.OrdinalIgnoreCase))
+                    ? "reviewed"
+                    : "translated"
+        })
+        .Where(group => group.Translations.Length == 1)
+        .ToDictionary(group => group.SourceHash,
+            group => (Translation: group.Translations[0], group.Status), StringComparer.Ordinal);
+
+    foreach (var entry in entries.Where(entry => string.IsNullOrEmpty(entry.Translation)))
+    {
+        if (string.IsNullOrEmpty(entry.SourceHash) ||
+            !reusableBySourceHash.TryGetValue(entry.SourceHash, out var reusable))
+        {
+            continue;
+        }
+
+        entry.Translation = reusable.Translation;
+        entry.Status = reusable.Status;
+    }
+
     var currentKeys = new HashSet<string>(entries.Select(entry => entry.Key), StringComparer.Ordinal);
+    var currentSourceHashes = new HashSet<string>(
+        entries.Where(entry => !string.IsNullOrEmpty(entry.SourceHash)).Select(entry => entry.SourceHash),
+        StringComparer.Ordinal);
     var preserved = 0;
     foreach (var previous in previousEntries.Values.OrderBy(entry => entry.Key, StringComparer.Ordinal))
     {
+        // Conflicts are a property of the current capture and key design. Keeping an old
+        // conflict after the key builder has been improved resurrects obsolete hash-suffixed
+        // rows and prevents the conflict report from converging.
+        if (string.Equals(previous.Status, "conflict", StringComparison.Ordinal))
+        {
+            continue;
+        }
+
+        // A current row with the same source hash supersedes an obsolete key after a key-builder
+        // migration. Keeping both would duplicate translations and grow the source forever.
+        if (!string.IsNullOrEmpty(previous.SourceHash) && currentSourceHashes.Contains(previous.SourceHash))
+        {
+            continue;
+        }
+
         if (!currentKeys.Add(previous.Key))
         {
             continue;

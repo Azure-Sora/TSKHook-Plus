@@ -18,8 +18,9 @@
 ### 安装方法
 
 - 安装原项目
-- 使用release中的dll替换Twinkle_StarKnights\BepInEx\plugins下的原dll
-- 将release中的汉化文件ui_translations.jsonl放到Twinkle_StarKnights\BepInEx\plugins\TSKHook\ui_translations.jsonl
+- 从本仓库的 [Releases](https://github.com/Azure-Sora/TSKHook-Plus/releases) 下载 `TSKHook.dll` 和 `ui_translations.jsonl`
+- 使用 `TSKHook.dll` 替换 `Twinkle_StarKnightsX\BepInEx\plugins` 下的原 DLL
+- 将 `ui_translations.jsonl` 放到 `Twinkle_StarKnightsX\BepInEx\plugins\TSKHook\ui_translations.jsonl`
 
 ### 已实现的功能
 

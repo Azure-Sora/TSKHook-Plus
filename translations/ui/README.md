@@ -50,6 +50,18 @@ dotnet run --project .\tools\CompileUiTranslations\CompileUiTranslations.csproj 
 
 任何 `ui_conflicts.jsonl` 非空的情况都应先修复键设计，再进入翻译。
 
+## 生成技能升级后的正式文本
+
+技能升级预览会用 `<color>` 标出变化数值，而升级完成后的界面可能显示一条未被实际采集到、且不含 `<color>` 的独立文本。完成预览译文质量核对后，可运行：
+
+```powershell
+dotnet run --project .\tools\GenerateSkillPlainText\GenerateSkillPlainText.csproj -c Release -- `
+  .\translations\ui\source\ui_source.jsonl `
+  .\translations\ui\source\by_category\skill.jsonl
+```
+
+生成器只移除原文和译文中的 `color` 开始/结束标签，不改动文字、数字、换行或其他富文本。仅当源/译标签序列一致、去标签后译文唯一、且正式原文尚不存在时才会生成；生成行使用确定性的 source hash 键，因此可重复运行且能通过运行时的安全 source-hash 回退命中。先运行 `--self-test` 可验证去标签和幂等行为。
+
 ## 编译运行时翻译资产
 
 分类文件完成初译后运行：
