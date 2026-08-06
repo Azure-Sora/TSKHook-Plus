@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to publish
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -17,34 +23,50 @@ jobs:
     name: Publish release assets
     runs-on: ubuntu-latest
     steps:
-      - name: Check out tagged revision
-        uses: actions/checkout@v6
+      - name: Download assets from tagged revision
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG_NAME: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          gh api \
+            -H "Accept: application/vnd.github.raw+json" \
+            "/repos/$GH_REPO/contents/release/TSKHook.dll?ref=$TAG_NAME" \
+            > release-assets/TSKHook.dll
+          gh api \
+            -H "Accept: application/vnd.github.raw+json" \
+            "/repos/$GH_REPO/contents/translations/ui/runtime/ui_translations.jsonl?ref=$TAG_NAME" \
+            > release-assets/ui_translations.jsonl
 
       - name: Validate release assets
         shell: bash
         run: |
           set -euo pipefail
-          test -s release/TSKHook.dll
-          test -s translations/ui/runtime/ui_translations.jsonl
+          test -s release-assets/TSKHook.dll
+          test -s release-assets/ui_translations.jsonl
+          test "$(head -c 2 release-assets/TSKHook.dll)" = "MZ"
 
       - name: Create or update GitHub Release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          TAG_NAME: ${{ github.ref_name }}
+          TAG_NAME: ${{ inputs.tag || github.ref_name }}
         run: |
           set -euo pipefail
 
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
             gh release upload "$TAG_NAME" \
-              release/TSKHook.dll \
-              translations/ui/runtime/ui_translations.jsonl \
+              release-assets/TSKHook.dll \
+              release-assets/ui_translations.jsonl \
               --clobber
           else
             gh release create "$TAG_NAME" \
-              release/TSKHook.dll \
-              translations/ui/runtime/ui_translations.jsonl \
+              release-assets/TSKHook.dll \
+              release-assets/ui_translations.jsonl \
               --verify-tag \
               --title "$TAG_NAME" \
               --generate-notes
