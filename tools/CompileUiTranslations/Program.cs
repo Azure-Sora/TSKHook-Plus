@@ -200,13 +200,38 @@ static int RunSelfTest()
         var cleared = new SourceEntry { Key = "cleared", SourceHash = "hash-clear", Translation = "", Status = "new" };
         var changed = new SourceEntry { Key = "changed", SourceHash = "hash-new", Translation = "", Status = "new" };
         var fresh = new SourceEntry { Key = "fresh", SourceHash = "hash-fresh", Translation = "", Status = "new" };
+        previousLoad.Entries["old-unit-name"] = new SourceEntry
+        {
+            Key = "old-unit-name", Category = "unit", Field = "unit_name", SourceHash = "hash-context",
+            Translation = "角色名译文", Status = "reviewed"
+        };
+        previousLoad.Entries["old-reward-title"] = new SourceEntry
+        {
+            Key = "old-reward-title", Category = "reward", Field = "reward_name", SourceHash = "hash-context",
+            Translation = "称号译文", Status = "translated"
+        };
+        var contextualUnit = new SourceEntry
+        {
+            Key = "new-unit-name", Category = "unit", Field = "unit_name", SourceHash = "hash-context",
+            Translation = "", Status = "new"
+        };
+        var contextualReward = new SourceEntry
+        {
+            Key = "new-reward-title", Category = "reward", Field = "reward_name", SourceHash = "hash-context",
+            Translation = "", Status = "new"
+        };
+        var ambiguousMisc = new SourceEntry
+        {
+            Key = "new-misc", Category = "misc", Field = "detail", SourceHash = "hash-context",
+            Translation = "", Status = "new"
+        };
 
         ApplyPreviousTranslation(same, previousLoad.Entries);
         ApplyPreviousTranslation(cleared, previousLoad.Entries);
         ApplyPreviousTranslation(changed, previousLoad.Entries);
         ApplyPreviousTranslation(fresh, previousLoad.Entries);
 
-        var partialEntries = new List<SourceEntry> { fresh };
+        var partialEntries = new List<SourceEntry> { fresh, contextualUnit, contextualReward, ambiguousMisc };
         previousLoad.Entries["obsolete-conflict"] = new SourceEntry
         {
             Key = "obsolete-conflict", SourceHash = "hash-conflict", Translation = "", Status = "conflict"
@@ -249,6 +274,9 @@ static int RunSelfTest()
         var exSkillLevel9 = BuildKey(TestRecord("ExSkillStrengthenData",
             "$.result.skill_data_list[].ex_skill_lv_list[].detail", "技能等级9",
             ("ex_skill_id", "10070011"), ("ex_skill_lv", "9"), ("ex_skill_max_lv", "10")));
+        var exSkillSummaryLevel9 = BuildKey(TestRecord("ExSkillStrengthenData",
+            "$.result.skill_data_list[].detail", "技能等级9正式文本",
+            ("ex_skill_id", "10070011"), ("ex_skill_lv", "9"), ("ex_skill_max_lv", "10")));
         var exSkillLevel10 = BuildKey(TestRecord("ExSkillStrengthenData",
             "$.result.skill_data_list[].ex_skill_lv_list[].ex_skill_name", "技能等级10",
             ("ex_skill_id", "10070011"), ("ex_skill_lv", "10"), ("ex_skill_max_lv", "10")));
@@ -278,7 +306,10 @@ static int RunSelfTest()
                      changed.Translation == "旧译文" && changed.Status == "stale" &&
                      changed.PreviousSourceHash == "hash-old" &&
                      fresh.Translation == "旧键译文" && fresh.Status == "translated" &&
-                     preservedEntries == 3 && partialEntries.Count == 4 &&
+                     contextualUnit.Translation == "角色名译文" && contextualUnit.Status == "reviewed" &&
+                     contextualReward.Translation == "称号译文" && contextualReward.Status == "translated" &&
+                     ambiguousMisc.Translation == "" && ambiguousMisc.Status == "new" &&
+                     preservedEntries == 3 && partialEntries.Count == 7 &&
                      partialEntries.All(entry => entry.Key != "obsolete-conflict") &&
                      partialEntries.Any(entry => entry.Key == "same" &&
                          entry.Translation == "分类译文" && entry.Status == "reviewed") &&
@@ -291,6 +322,10 @@ static int RunSelfTest()
                      rewardSingle.Key != rewardMultiline.Key &&
                      exSkillLevel9.Category == "skill" && exSkillLevel9.Field == "skill_detail" &&
                      exSkillLevel9.Key == "skill:lv=9:skill_id=10070011:skill_detail" &&
+                     exSkillSummaryLevel9.Category == "skill" && exSkillSummaryLevel9.Field == "skill_detail" &&
+                     exSkillSummaryLevel9.Key ==
+                     "skill:detail_variant=summary:lv=9:skill_id=10070011:skill_detail" &&
+                     exSkillSummaryLevel9.Key != exSkillLevel9.Key &&
                      exSkillLevel10.Category == "skill" && exSkillLevel10.Field == "skill_name" &&
                      exSkillLevel10.Key == "skill:lv=10:skill_id=10070011:skill_name" &&
                      exSkillItem.Category == "item";
@@ -429,29 +464,35 @@ static int AppendMissingPreviousEntries(
     ICollection<SourceEntry> entries,
     IReadOnlyDictionary<string, SourceEntry> previousEntries)
 {
-    var reusableBySourceHash = previousEntries.Values
+    var reusableCandidates = previousEntries.Values
         .Where(entry => !string.IsNullOrEmpty(entry.SourceHash) &&
                         !string.IsNullOrEmpty(entry.Translation) &&
                         !string.Equals(entry.Status, "conflict", StringComparison.Ordinal))
-        .GroupBy(entry => entry.SourceHash, StringComparer.Ordinal)
-        .Select(group => new
-        {
-            SourceHash = group.Key,
-            Translations = group.Select(entry => entry.Translation).Distinct(StringComparer.Ordinal).ToArray(),
-            Status = group.Any(entry => string.Equals(entry.Status, "verified", StringComparison.OrdinalIgnoreCase))
-                ? "verified"
-                : group.Any(entry => string.Equals(entry.Status, "reviewed", StringComparison.OrdinalIgnoreCase))
-                    ? "reviewed"
-                    : "translated"
-        })
+        .ToArray();
+    var reusableByContext = reusableCandidates
+        .GroupBy(entry => ContextualSourceKey(entry.Category, entry.Field, entry.SourceHash),
+            StringComparer.Ordinal)
+        .Select(ToReusableTranslation)
         .Where(group => group.Translations.Length == 1)
-        .ToDictionary(group => group.SourceHash,
+        .ToDictionary(group => group.Key,
+            group => (Translation: group.Translations[0], group.Status), StringComparer.Ordinal);
+    var reusableBySourceHash = reusableCandidates
+        .GroupBy(entry => entry.SourceHash, StringComparer.Ordinal)
+        .Select(ToReusableTranslation)
+        .Where(group => group.Translations.Length == 1)
+        .ToDictionary(group => group.Key,
             group => (Translation: group.Translations[0], group.Status), StringComparer.Ordinal);
 
     foreach (var entry in entries.Where(entry => string.IsNullOrEmpty(entry.Translation)))
     {
-        if (string.IsNullOrEmpty(entry.SourceHash) ||
-            !reusableBySourceHash.TryGetValue(entry.SourceHash, out var reusable))
+        if (string.IsNullOrEmpty(entry.SourceHash))
+        {
+            continue;
+        }
+
+        var contextKey = ContextualSourceKey(entry.Category, entry.Field, entry.SourceHash);
+        if (!reusableByContext.TryGetValue(contextKey, out var reusable) &&
+            !reusableBySourceHash.TryGetValue(entry.SourceHash, out reusable))
         {
             continue;
         }
@@ -493,6 +534,20 @@ static int AppendMissingPreviousEntries(
 
     return preserved;
 }
+
+static string ContextualSourceKey(string category, string field, string sourceHash) =>
+    (category ?? string.Empty) + "\u001f" + (field ?? string.Empty) + "\u001f" + sourceHash;
+
+static ReusableTranslationGroup ToReusableTranslation(IGrouping<string, SourceEntry> group) => new()
+{
+    Key = group.Key,
+    Translations = group.Select(entry => entry.Translation).Distinct(StringComparer.Ordinal).ToArray(),
+    Status = group.Any(entry => string.Equals(entry.Status, "verified", StringComparison.OrdinalIgnoreCase))
+        ? "verified"
+        : group.Any(entry => string.Equals(entry.Status, "reviewed", StringComparison.OrdinalIgnoreCase))
+            ? "reviewed"
+            : "translated"
+};
 
 static void WriteJsonLines(string path, IEnumerable<SourceEntry> records, JsonSerializerOptions options)
 {
@@ -565,4 +620,11 @@ internal sealed class PreviousEntryLoadResult
 {
     internal Dictionary<string, SourceEntry> Entries { get; } = new(StringComparer.Ordinal);
     internal List<string> Errors { get; } = new();
+}
+
+internal sealed class ReusableTranslationGroup
+{
+    public string Key { get; set; }
+    public string[] Translations { get; set; }
+    public string Status { get; set; }
 }

@@ -128,7 +128,7 @@ internal static class UiTextKeyBuilder
         if (context.ContainsKey("ex_skill_id") &&
             path.Contains("skill_data_list", StringComparison.OrdinalIgnoreCase))
         {
-            return CreateExSkill(field, context);
+            return CreateExSkill(field, path, context);
         }
 
         if (context.ContainsKey("skill_id") && path.Contains("skill", StringComparison.OrdinalIgnoreCase))
@@ -177,7 +177,7 @@ internal static class UiTextKeyBuilder
         return FromIdentity("misc", field, identity, apiName);
     }
 
-    private static UiTextKeyDescriptor CreateExSkill(string field,
+    private static UiTextKeyDescriptor CreateExSkill(string field, string path,
         IReadOnlyDictionary<string, string> context)
     {
         var identity = new SortedDictionary<string, string>(StringComparer.Ordinal)
@@ -187,6 +187,12 @@ internal static class UiTextKeyBuilder
         if (context.TryGetValue("ex_skill_lv", out var level))
         {
             identity["lv"] = level;
+        }
+
+        if (field == "detail" &&
+            !path.Contains("ex_skill_lv_list", StringComparison.OrdinalIgnoreCase))
+        {
+            identity["detail_variant"] = "summary";
         }
 
         var normalizedField = field switch
