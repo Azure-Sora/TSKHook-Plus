@@ -24,7 +24,7 @@
 
 每行包含 `schemaVersion: 1`、唯一 `key`、原文 SHA-256 `sourceHash`、非空 `translation`。使用 UTF-8。未知协议、缺失字段、重复 key、错误哈希或行数不一致都拒绝整个包；失败不清空旧内存索引。
 
-`Translation.Core` 是读取、身份键与包校验规则的权威实现，不依赖 Unity。插件发布时必须同时分发 `TSKHook.Translation.Core.dll`。
+`Extensions/Core` 是读取、身份键与包校验规则的权威源码，不依赖 Unity。插件将这份源码直接编入 `TSKHook.dll`，发行时仅需一个插件 DLL；工作台通过独立核心项目复用同一份源码。
 
 ## 本地目录
 

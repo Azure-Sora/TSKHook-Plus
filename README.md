@@ -8,7 +8,7 @@
 
 ## 安装与配置
 
-保留游戏已有的 BepInEx 6 / IL2CPP 安装。将发行包的 `TSKHook.dll` 和 `TSKHook.Translation.Core.dll` 一起放入 `BepInEx/plugins`。安装 [anosu/ConfigurationManager 的 IL2CPP 发行版](https://github.com/anosu/BepInEx.ConfigurationManager/releases)，其中 `ConfigurationManager.dll` 和 `BepInEx.KeyboardShortcut.dll` 必须一起安装。不要用构建依赖替换游戏 BepInEx 核心程序集。
+保留游戏已有的 BepInEx 6 / IL2CPP 安装。将发行包的 `TSKHook.dll` 放入 `BepInEx/plugins`。从旧双 DLL 版升级时，关闭游戏后覆盖主 DLL，并移除旧的 `TSKHook.Translation.Core.dll`；保留已有配置、字体、捕获和译文目录。安装 [anosu/ConfigurationManager 的 IL2CPP 发行版](https://github.com/anosu/BepInEx.ConfigurationManager/releases)，其中 `ConfigurationManager.dll` 和 `BepInEx.KeyboardShortcut.dll` 必须一起安装。不要用构建依赖替换游戏 BepInEx 核心程序集。
 
 按 **F1** 打开设置；管理器负责此按键，原插件不再用 F1 重载。首次运行将旧 `plugins/config.json` 导入 BepInEx 配置，旧文件保留但不再作为配置源。所有设置和 F11 使用同一份配置。需要重新读取磁盘配置时，在 **Maintenance / 执行操作** 中选择“重新读取并应用配置”；操作执行后自动恢复“无操作”。
 
@@ -30,7 +30,7 @@ fork 新增的实现和维护文件集中在 `Extensions/`：根层是游戏集�
 - [翻译包协议](Extensions/docs/translation-package-format.md)
 - [交付与验证记录](Extensions/docs/verification.md)
 - 构建：`dotnet build -c Release -p:GamePath=游戏目录`
-- 发布前：`./Extensions/Stage-Release.ps1 -GamePath 游戏目录`，审阅并提交两个 DLL，再创建插件版本标签。
+- 发布前：`./Extensions/Stage-Release.ps1 -GamePath 游戏目录`，审阅并提交 `Extensions/release/TSKHook.dll`，再创建插件版本标签。
 - 纯托管验证入口位于 `Extensions/Tests/`；这些测试不代表游戏内验证。
 
 以下保留上游功能介绍；配置入口以本页说明为准。
