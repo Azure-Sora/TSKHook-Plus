@@ -15,6 +15,7 @@ internal static class UiTextCaptureService
     private static readonly ConcurrentDictionary<string, byte> Seen = new();
     private static readonly ConcurrentQueue<CaptureRecord> Pending = new();
     private static readonly object FlushLock = new();
+    private static readonly object LifecycleLock = new();
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -29,26 +30,39 @@ internal static class UiTextCaptureService
     private static long observedResponses;
     private static long capturedTexts;
 
-    internal static void Initialize()
+    internal static void Initialize() => Configure();
+
+    internal static void Configure()
     {
-        if (Interlocked.Exchange(ref initialized, 1) != 0 || !TSKConfig.UiCaptureEnabled)
+        lock (LifecycleLock)
         {
-            return;
+            if (Volatile.Read(ref shuttingDown) != 0) return;
+            flushTimer?.Dispose();
+            flushTimer = null;
+            if (!TSKConfig.UiCaptureEnabled)
+            {
+                Flush();
+                return;
+            }
+            if (Volatile.Read(ref initialized) == 0)
+            {
+                outputDirectory = Path.Combine(Paths.PluginPath, "TSKHook", "ui_capture");
+                outputFile = Path.Combine(outputDirectory, "ui_texts_v2.jsonl");
+                Directory.CreateDirectory(outputDirectory);
+                LoadExistingKeys();
+                Volatile.Write(ref initialized, 1);
+            }
+            var period = TimeSpan.FromSeconds(Math.Max(1, TSKConfig.UiCaptureFlushSeconds));
+            flushTimer = new Timer(_ => Flush(), null, period, period);
         }
-
-        outputDirectory = Path.Combine(Paths.PluginPath, "TSKHook", "ui_capture");
-        outputFile = Path.Combine(outputDirectory, "ui_texts_v2.jsonl");
-        Directory.CreateDirectory(outputDirectory);
-        LoadExistingKeys();
-
-        var period = TimeSpan.FromSeconds(Math.Max(1, TSKConfig.UiCaptureFlushSeconds));
-        flushTimer = new Timer(_ => Flush(), null, period, period);
-
-        Plugin.Global.Log.LogInfo($"[UI Capture] Enabled. Output: {outputFile}");
-        Plugin.Global.Log.LogInfo("[UI Capture] Only Japanese-looking strings are saved; raw API responses are not written.");
     }
 
     internal static void Observe(string apiName, string formattedResponse)
+    {
+        lock (LifecycleLock) ObserveCore(apiName, formattedResponse);
+    }
+
+    private static void ObserveCore(string apiName, string formattedResponse)
     {
         if (!TSKConfig.UiCaptureEnabled || Volatile.Read(ref initialized) == 0 ||
             Volatile.Read(ref shuttingDown) != 0 || string.IsNullOrWhiteSpace(formattedResponse))
@@ -80,6 +94,11 @@ internal static class UiTextCaptureService
     }
 
     internal static void Shutdown()
+    {
+        lock (LifecycleLock) ShutdownCore();
+    }
+
+    private static void ShutdownCore()
     {
         if (Interlocked.Exchange(ref shuttingDown, 1) != 0)
         {

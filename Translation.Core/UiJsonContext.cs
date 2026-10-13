@@ -4,9 +4,9 @@ using System.Text.Json;
 
 namespace TSKHook;
 
-internal static class UiJsonContext
+public static class UiJsonContext
 {
-    internal static Dictionary<string, string> Extend(IReadOnlyDictionary<string, string> inherited,
+    public static Dictionary<string, string> Extend(IReadOnlyDictionary<string, string> inherited,
         JsonElement element)
     {
         var context = new Dictionary<string, string>(StringComparer.Ordinal);

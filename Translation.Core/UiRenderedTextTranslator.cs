@@ -1,8 +1,8 @@
 namespace TSKHook;
 
-internal static class UiRenderedTextTranslator
+public static class UiRenderedTextTranslator
 {
-    internal static bool TryTranslate(string source, UiTranslationIndex translations, out string translation)
+    public static bool TryTranslate(string source, UiTranslationIndex translations, out string translation)
     {
         translation = null;
         if (translations == null || translations.ExactCount == 0 ||

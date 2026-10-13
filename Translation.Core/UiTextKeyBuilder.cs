@@ -4,7 +4,7 @@ using System.Text;
 
 namespace TSKHook;
 
-internal static class UiTextKeyBuilder
+public static class UiTextKeyBuilder
 {
     private static readonly string[] GenericIdentityFields =
     {
@@ -12,7 +12,7 @@ internal static class UiTextKeyBuilder
         "reward_id", "reward_type", "shop_id", "sister_unit_id", "stage_id", "status_effect_id", "unit_id"
     };
 
-    internal static UiTextKeyDescriptor Build(string apiName, string path, string source, string sourceHash,
+    public static UiTextKeyDescriptor Build(string apiName, string path, string source, string sourceHash,
         IReadOnlyDictionary<string, string> context)
     {
         context ??= new Dictionary<string, string>(StringComparer.Ordinal);
@@ -330,5 +330,5 @@ internal static class UiTextKeyBuilder
     private static string Escape(string value) => Uri.EscapeDataString(value ?? string.Empty);
 }
 
-internal sealed record UiTextKeyDescriptor(string Key, string Category, string Field,
+public sealed record UiTextKeyDescriptor(string Key, string Category, string Field,
     SortedDictionary<string, string> Identity);

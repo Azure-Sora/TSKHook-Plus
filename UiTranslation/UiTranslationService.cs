@@ -13,11 +13,6 @@ internal static class UiTranslationService
 {
     private static readonly object ReloadLock = new();
     private static readonly ConcurrentDictionary<string, byte> LoggedApis = new(StringComparer.Ordinal);
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
-
     private static UiTranslationIndex translations = UiTranslationIndex.Empty;
     private static string assetPath;
     private static long translatedResponses;
@@ -35,62 +30,24 @@ internal static class UiTranslationService
         Reload();
     }
 
-    internal static void Reload()
+    internal static bool Reload(string path = null)
     {
         lock (ReloadLock)
         {
-            var loaded = new Dictionary<string, UiRuntimeTranslation>(StringComparer.Ordinal);
-            if (string.IsNullOrEmpty(assetPath))
-            {
-                assetPath = Path.Combine(Paths.PluginPath, "TSKHook", "ui_translations.jsonl");
-            }
-
+            var candidate = path ?? assetPath;
             try
             {
-                if (!File.Exists(assetPath))
-                {
-                    Volatile.Write(ref translations, UiTranslationIndex.Empty);
-                    Plugin.Global.Log.LogWarning($"[UI Translation] Runtime asset not found: {assetPath}");
-                    return;
-                }
-
-                var invalidRows = 0;
-                foreach (var line in File.ReadLines(assetPath))
-                {
-                    if (string.IsNullOrWhiteSpace(line))
-                    {
-                        continue;
-                    }
-
-                    try
-                    {
-                        var row = JsonSerializer.Deserialize<RuntimeRow>(line, JsonOptions);
-                        if (row?.SchemaVersion != 1 || string.IsNullOrEmpty(row.Key) ||
-                            string.IsNullOrEmpty(row.SourceHash) || string.IsNullOrWhiteSpace(row.Translation))
-                        {
-                            invalidRows++;
-                            continue;
-                        }
-
-                        loaded[row.Key] = new UiRuntimeTranslation(row.SourceHash, row.Translation);
-                    }
-                    catch (JsonException)
-                    {
-                        invalidRows++;
-                    }
-                }
-
-                var index = new UiTranslationIndex(loaded);
+                var index = RuntimeAsset.Load(candidate);
                 Volatile.Write(ref translations, index);
+                assetPath = candidate;
                 LoggedApis.Clear();
-                Plugin.Global.Log.LogInfo(
-                    $"[UI Translation] Loaded {index.ExactCount} entries from {assetPath}. " +
-                    $"Safe source-hash fallbacks: {index.UniqueSourceHashCount}; " +
-                    $"ambiguous hashes excluded: {index.AmbiguousSourceHashCount}; invalid rows: {invalidRows}.");
+                Plugin.Global.Log.LogInfo($"[UI Translation] Loaded {index.ExactCount} entries; ambiguous hashes excluded: {index.AmbiguousSourceHashCount}.");
+                return true;
             }
             catch (Exception exception)
             {
-                Plugin.Global.Log.LogError($"[UI Translation] Failed to load runtime asset: {exception}");
+                Plugin.Global.Log.LogWarning($"[UI Translation] Reload rejected; previous translations retained: {exception.Message}");
+                return false;
             }
         }
     }
@@ -207,11 +164,4 @@ internal static class UiTranslationService
         }
     }
 
-    private sealed class RuntimeRow
-    {
-        public int SchemaVersion { get; set; }
-        public string Key { get; set; }
-        public string SourceHash { get; set; }
-        public string Translation { get; set; }
-    }
 }

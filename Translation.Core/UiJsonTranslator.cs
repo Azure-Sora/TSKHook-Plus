@@ -7,9 +7,9 @@ using System.Text.Json;
 
 namespace TSKHook;
 
-internal static class UiJsonTranslator
+public static class UiJsonTranslator
 {
-    internal static bool TryTranslate(string apiName, string json,
+    public static bool TryTranslate(string apiName, string json,
         UiTranslationIndex translations,
         out string translatedJson, out int replacementCount, out int hashFallbackCount)
     {
@@ -70,7 +70,7 @@ internal static class UiJsonTranslator
 
             case JsonValueKind.String:
                 var source = element.GetString();
-                if (!CaptureTextFilter.IsSensitivePath(path) && TryGetTranslation(apiName, path, source,
+                if (!CaptureTextFilter.IsSensitivePath(path) && !TranslationProtection.IsProtectedPath(apiName, path) && TryGetTranslation(apiName, path, source,
                         inheritedContext, translations, out var translation, out var usedHashFallback))
                 {
                     writer.WriteStringValue(translation);
@@ -109,11 +109,11 @@ internal static class UiJsonTranslator
         return translations.TryGet(descriptor.Key, sourceHash, out translation, out usedHashFallback);
     }
 
-    internal static string Sha256(string value)
+    public static string Sha256(string value)
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 }
 
-internal sealed record UiRuntimeTranslation(string SourceHash, string Translation);
+public sealed record UiRuntimeTranslation(string SourceHash, string Translation);

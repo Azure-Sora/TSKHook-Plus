@@ -3,15 +3,15 @@ using System.Collections.Generic;
 
 namespace TSKHook;
 
-internal sealed class UiTranslationIndex
+public sealed class UiTranslationIndex
 {
-    internal static readonly UiTranslationIndex Empty =
+    public static readonly UiTranslationIndex Empty =
         new(new Dictionary<string, UiRuntimeTranslation>(StringComparer.Ordinal));
 
     private readonly IReadOnlyDictionary<string, UiRuntimeTranslation> exact;
     private readonly IReadOnlyDictionary<string, UiRuntimeTranslation> uniqueBySourceHash;
 
-    internal UiTranslationIndex(IReadOnlyDictionary<string, UiRuntimeTranslation> translations)
+    public UiTranslationIndex(IReadOnlyDictionary<string, UiRuntimeTranslation> translations)
     {
         exact = translations ?? new Dictionary<string, UiRuntimeTranslation>(StringComparer.Ordinal);
 
@@ -41,13 +41,13 @@ internal sealed class UiTranslationIndex
         AmbiguousSourceHashCount = ambiguous.Count;
     }
 
-    internal int ExactCount => exact.Count;
+    public int ExactCount => exact.Count;
 
-    internal int UniqueSourceHashCount => uniqueBySourceHash.Count;
+    public int UniqueSourceHashCount => uniqueBySourceHash.Count;
 
-    internal int AmbiguousSourceHashCount { get; }
+    public int AmbiguousSourceHashCount { get; }
 
-    internal bool TryGetUniqueBySourceHash(string sourceHash, out string translation)
+    public bool TryGetUniqueBySourceHash(string sourceHash, out string translation)
     {
         translation = null;
         if (!uniqueBySourceHash.TryGetValue(sourceHash, out var entry) ||
@@ -60,7 +60,7 @@ internal sealed class UiTranslationIndex
         return true;
     }
 
-    internal bool TryGet(string key, string sourceHash, out string translation, out bool usedHashFallback)
+    public bool TryGet(string key, string sourceHash, out string translation, out bool usedHashFallback)
     {
         usedHashFallback = false;
         translation = null;

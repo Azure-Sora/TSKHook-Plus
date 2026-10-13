@@ -6,6 +6,6 @@
     <Nullable>disable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="..\..\UiTranslation\CaptureTextFilter.cs" Link="CaptureTextFilter.cs" />
+    <ProjectReference Include="..\..\Translation.Core\TSKHook.Translation.Core.csproj" />
   </ItemGroup>
 </Project>

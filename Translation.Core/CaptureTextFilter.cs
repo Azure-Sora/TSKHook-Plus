@@ -2,9 +2,9 @@ using System;
 
 namespace TSKHook;
 
-internal static class CaptureTextFilter
+public static class CaptureTextFilter
 {
-    internal static bool ShouldCapture(string path, string value)
+    public static bool ShouldCapture(string path, string value)
     {
         return !string.IsNullOrWhiteSpace(value) && !IsSensitivePath(path) && ContainsJapaneseText(value);
     }
@@ -22,7 +22,7 @@ internal static class CaptureTextFilter
         return false;
     }
 
-    internal static bool IsSensitivePath(string path)
+    public static bool IsSensitivePath(string path)
     {
         var normalized = path.ToLowerInvariant();
         return normalized.StartsWith("$.user_data", StringComparison.Ordinal) ||
