@@ -94,11 +94,34 @@ Assert(!UiJsonTranslator.TryTranslate("HomeData", userJson, new UiTranslationInd
        userUnchanged == userJson && userCount == 0 && userFallbackCount == 0,
     "sensitive player field must never be replaced", failures);
 
+var enemyContext = Context(("quest_id", "300039"), ("shop_id", "2242"));
+var enemyPath = "$.result.stage_list[].enemy_data.character_name";
+var enemyA = Key("SubdueEventTop", enemyPath, "ルネア", enemyContext);
+var enemyB = Key("SubdueEventTop", enemyPath, "ロロット", enemyContext);
+Assert(enemyA != enemyB, "different enemies in one quest must have distinct identities", failures);
+Assert(enemyA == Key("SubdueEventTop", "$.result.enemy_data.character_name", "ルネア", enemyContext),
+    "enemy identity must be independent of array location", failures);
+var enemyIndex = new UiTranslationIndex(new Dictionary<string, UiRuntimeTranslation>
+{
+    [enemyA] = new(UiJsonTranslator.Sha256("ルネア"), "露妮亚"),
+    [enemyB] = new(UiJsonTranslator.Sha256("ロロット"), "洛洛特")
+});
+var enemyJson = "{\"result\":{\"quest_id\":300039,\"shop_id\":2242,\"stage_list\":[{\"enemy_data\":{\"character_name\":\"ルネア\"}},{\"enemy_data\":{\"character_name\":\"ロロット\"}}]}}";
+Assert(UiJsonTranslator.TryTranslate("SubdueEventTop", enemyJson, enemyIndex, out var enemyOutput,
+    out var enemyCount, out var enemyFallback) && enemyCount == 2 && enemyFallback == 0 &&
+    JsonDocument.Parse(enemyOutput).RootElement.GetProperty("result").GetProperty("stage_list")[0].GetProperty("enemy_data").GetProperty("character_name").GetString() == "露妮亚" &&
+    JsonDocument.Parse(enemyOutput).RootElement.GetProperty("result").GetProperty("stage_list")[1].GetProperty("enemy_data").GetProperty("character_name").GetString() == "洛洛特", "enemy names must both match exact runtime keys", failures);
+Assert(Key("SubdueEventTop", enemyPath, "ルネア", Context(("unit_id", "7"))) == "unit:unit_id=7:character_name",
+    "numbered unit identities remain unchanged", failures);
+Assert(UiTextKeyBuilder.TryUpgradeEnemyDataKey("SubdueEventTop", enemyPath, "ルネア", UiJsonTranslator.Sha256("ルネア"),
+    enemyContext, "misc:SubdueEventTop:quest_id=300039:shop_id=2242:character_name#61ea8877", out var upgrade) && upgrade.Key == enemyA,
+    "legacy conflict identity upgrades to runtime key", failures);
+
 if (failures.Count == 0)
 {
     RunStructuredLookupBenchmark();
     RunRenderedLookupBenchmark();
-    Console.WriteLine("PASS: 14 runtime translation assertions");
+    Console.WriteLine("PASS: 19 runtime translation assertions");
     return 0;
 }
 

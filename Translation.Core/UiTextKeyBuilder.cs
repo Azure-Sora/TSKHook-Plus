@@ -44,6 +44,13 @@ public static class UiTextKeyBuilder
             return CreateWithSourceHash("misc", field, sourceHash, context, ("stage_id", false));
         }
 
+        if (UsesEnemyDataSourceIdentity(path, context))
+        {
+            var enemyIdentity = GenericIdentity(context, sourceHash);
+            enemyIdentity["source_hash"] = sourceHash;
+            return FromIdentity("misc", field, enemyIdentity, apiName);
+        }
+
         if (path.Contains("tab_stage_data", StringComparison.OrdinalIgnoreCase) && field == "tab_name")
         {
             return CreateWithSourceHash("misc", field, sourceHash, context,
@@ -160,6 +167,30 @@ public static class UiTextKeyBuilder
             return Create("unit", field, context, ("unit_id", true), ("character_id", false));
         }
 
+        return FromIdentity("misc", field, GenericIdentity(context, sourceHash), apiName);
+    }
+
+    public static bool UsesEnemyDataSourceIdentity(string path, IReadOnlyDictionary<string, string> context)
+    {
+        var field = path[(path.LastIndexOf('.') + 1)..];
+        return path.Contains(".enemy_data.", StringComparison.OrdinalIgnoreCase) &&
+            !context.ContainsKey("unit_id") && field is "character_name" or "unit_name" or "unit_detail";
+    }
+
+    public static bool TryUpgradeEnemyDataKey(string apiName, string path, string source, string sourceHash,
+        IReadOnlyDictionary<string, string> context, string oldKey, out UiTextKeyDescriptor descriptor)
+    {
+        descriptor = null;
+        if (!UsesEnemyDataSourceIdentity(path, context)) return false;
+        var field = path[(path.LastIndexOf('.') + 1)..];
+        var legacy = FromIdentity("misc", field, GenericIdentity(context, sourceHash), apiName).Key;
+        if (oldKey != legacy && oldKey != legacy + "#" + sourceHash[..Math.Min(8, sourceHash.Length)]) return false;
+        descriptor = Build(apiName, path, source, sourceHash, context);
+        return descriptor.Key != oldKey;
+    }
+
+    private static SortedDictionary<string, string> GenericIdentity(IReadOnlyDictionary<string, string> context, string sourceHash)
+    {
         var identity = new SortedDictionary<string, string>(StringComparer.Ordinal);
         foreach (var name in GenericIdentityFields)
         {
@@ -174,7 +205,7 @@ public static class UiTextKeyBuilder
             identity["source_hash"] = sourceHash[..Math.Min(12, sourceHash.Length)];
         }
 
-        return FromIdentity("misc", field, identity, apiName);
+        return identity;
     }
 
     private static UiTextKeyDescriptor CreateExSkill(string field, string path,
