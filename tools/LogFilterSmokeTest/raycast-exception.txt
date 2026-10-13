@@ -1,0 +1,19 @@
+During invoking native->managed trampoline
+Exception: Il2CppInterop.Runtime.Il2CppException: System.NullReferenceException: Object reference not set to an instance of an object.
+--- BEGIN IL2CPP STACK TRACE ---
+System.NullReferenceException: Object reference not set to an instance of an object.
+  at UnityEngine.Sprite.get_textureRect () [0x00000] in <00000000000000000000000000000000>:0
+  at RaycastMask.IsRaycastLocationValid (UnityEngine.Vector2 sp, UnityEngine.Camera eventCamera) [0x00000] in <00000000000000000000000000000000>:0
+  at UnityEngine.UI.Graphic.Raycast (UnityEngine.Vector2 sp, UnityEngine.Camera eventCamera) [0x00000] in <00000000000000000000000000000000>:0
+  at UnityEngine.UI.GraphicRaycaster.Raycast (UnityEngine.Canvas canvas, UnityEngine.Camera eventCamera, UnityEngine.Vector2 pointerPosition, System.Collections.Generic.IList`1[T] foundGraphics, System.Collections.Generic.List`1[T] results) [0x00000] in <00000000000000000000000000000000>:0
+  at UnityEngine.UI.GraphicRaycaster.Raycast (UnityEngine.EventSystems.PointerEventData eventData, System.Collections.Generic.List`1[T] resultAppendList) [0x00000] in <00000000000000000000000000000000>:0
+  at UnityEngine.EventSystems.EventSystem.RaycastAll (UnityEngine.EventSystems.PointerEventData eventData, System.Collections.Generic.List`1[T] raycastResults) [0x00000] in <00000000000000000000000000000000>:0
+  at UnityEngine.EventSystems.PointerInputModule.GetMousePointerEventData (System.Int32 id) [0x00000] in <00000000000000000000000000000000>:0
+  at UnityEngine.EventSystems.StandaloneInputModule.ProcessMouseEvent (System.Int32 id) [0x00000] in <00000000000000000000000000000000>:0
+  at UnityEngine.EventSystems.StandaloneInputModule.Process () [0x00000] in <00000000000000000000000000000000>:0
+  at UnityEngine.EventSystems.EventSystem.Update () [0x00000] in <00000000000000000000000000000000>:0
+--- END IL2CPP STACK TRACE ---
+
+   at Il2CppInterop.Runtime.Il2CppException.RaiseExceptionIfNecessary(IntPtr returnedException) in /home/runner/work/Il2CppInterop/Il2CppInterop/Il2CppInterop.Runtime/Il2CppException.cs:line 36
+   at DMD<UnityEngine.EventSystems.EventSystem::Update>(EventSystem this)
+   at (il2cpp -> managed) Update(IntPtr , Il2CppMethodInfo* )

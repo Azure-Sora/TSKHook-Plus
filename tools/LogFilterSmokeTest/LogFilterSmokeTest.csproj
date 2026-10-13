@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net6.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><LangVersion>latest</LangVersion></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="BepInEx.Core" Version="6.0.0-be.785" />
+    <Compile Include="../../Compatibility/KnownGameLogFilter.cs" Link="KnownGameLogFilter.cs" />
+    <None Update="raycast-exception.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

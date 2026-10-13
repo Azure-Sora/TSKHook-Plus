@@ -71,6 +71,11 @@ internal static class UiTextCaptureService
             return;
         }
 
+        // FormatData is also called for non-JSON intermediate payloads. Match
+        // the translation path's object/array gate instead of warning on them.
+        var trimmed = formattedResponse.AsSpan().TrimStart();
+        if (trimmed.Length == 0 || trimmed[0] is not ('{' or '[')) return;
+
         Interlocked.Increment(ref observedResponses);
 
         try
