@@ -26,6 +26,7 @@
 
 - [实施方案](docs/ui-translation-modernization.md)
 - [翻译包协议](docs/translation-package-format.md)
+- [交付与验证记录](docs/verification.md)
 - 构建：`dotnet build -c Release -p:GamePath=游戏目录`
 - 发布前：`./scripts/Stage-Release.ps1 -GamePath 游戏目录`，审阅并提交两个 DLL，再创建插件版本标签。
 - 纯托管验证入口位于 `tools/`；这些测试不代表游戏内验证。

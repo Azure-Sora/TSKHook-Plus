@@ -53,6 +53,16 @@ try
     await seeded.RollbackAsync();
     Check(seeded.ReadState().Current.Version == "legacy-local", "first remote update can roll back to preexisting local translations");
     Console.WriteLine($"PASS: {tests} update/rollback/protection assertions");
+    if (args.Length == 2 && args[0] == "--remote")
+    {
+        using var remoteClient = new HttpClient { Timeout = TimeSpan.FromMinutes(3) };
+        var remoteStore = new TranslationPackageStore(Path.Combine(root, "remote"));
+        Check(await remoteStore.UpdateAsync(remoteClient, args[1], "1.4.0"), "public release download");
+        var active = remoteStore.ReadState().Current;
+        TranslationPackageStore.Verify(remoteStore.PackagePath(active), active);
+        Check(!await remoteStore.UpdateAsync(remoteClient, args[1], "1.4.0"), "public release no-op recheck");
+        Console.WriteLine($"PASS: public release {active.Version}, {active.Entries} entries, SHA-256 {active.Sha256}");
+    }
 }
 finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
 void Check(bool valid, string message) { tests++; if (!valid) throw new Exception(message); }
