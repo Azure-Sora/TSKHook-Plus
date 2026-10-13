@@ -7,7 +7,10 @@ try
     UiTextCaptureService.Initialize();
     UiTextCaptureService.Observe("Test", "{\"name\":\"無効\"}");
     Check(!File.Exists(path), "starts disabled without recording");
+    Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+    File.WriteAllText(path, "{\"interrupted\":");
     TSKConfig.UiCaptureEnabled = true; UiTextCaptureService.Configure();
+    Check(Directory.GetFiles(Path.GetDirectoryName(path)!, "*.incomplete-*").Length == 1, "interrupted tail preserved and repaired");
     UiTextCaptureService.Observe("Test", "{\"name\":\"テスト\"}");
     UiTextCaptureService.Observe("Test", "{\"name\":\"テスト\"}");
     TSKConfig.UiCaptureEnabled = false; UiTextCaptureService.Configure();
@@ -18,7 +21,7 @@ try
     Check(File.ReadAllLines(path).Length == 2, "reenable and idempotent shutdown flush");
     UiTextCaptureService.Observe("Test", "{\"name\":\"終了\"}");
     Check(File.ReadAllLines(path).Length == 2, "no observations after shutdown");
-    Console.WriteLine("PASS: 4 capture lifecycle assertions (managed substitutes, not game execution)");
+    Console.WriteLine("PASS: 5 capture lifecycle assertions (managed substitutes, not game execution)");
 }
 finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
 void Check(bool ok, string message) { if (!ok) throw new Exception(message); }

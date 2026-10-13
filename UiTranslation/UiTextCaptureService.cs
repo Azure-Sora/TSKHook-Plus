@@ -49,6 +49,7 @@ internal static class UiTextCaptureService
                 outputDirectory = Path.Combine(Paths.PluginPath, "TSKHook", "ui_capture");
                 outputFile = Path.Combine(outputDirectory, "ui_texts_v2.jsonl");
                 Directory.CreateDirectory(outputDirectory);
+                RepairIncompleteTail();
                 LoadExistingKeys();
                 Volatile.Write(ref initialized, 1);
             }
@@ -236,7 +237,20 @@ internal static class UiTextCaptureService
                         lines.Add(JsonSerializer.Serialize(record, JsonOptions));
                     }
 
-                    File.AppendAllLines(outputFile, lines, new UTF8Encoding(false));
+                    using var file = new FileStream(outputFile, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read);
+                    var originalLength = file.Length;
+                    file.Position = originalLength;
+                    try
+                    {
+                        var bytes = new UTF8Encoding(false).GetBytes(string.Join(Environment.NewLine, lines) + Environment.NewLine);
+                        file.Write(bytes, 0, bytes.Length);
+                        file.Flush(true);
+                    }
+                    catch
+                    {
+                        file.SetLength(originalLength);
+                        throw;
+                    }
                     Plugin.Global.Log.LogInfo($"[UI Capture] Saved {lines.Count} new texts.");
                 }
             }
@@ -286,6 +300,35 @@ internal static class UiTextCaptureService
         {
             Plugin.Global.Log.LogWarning($"[UI Capture] Could not read existing capture file: {exception.Message}");
         }
+    }
+
+    private static void RepairIncompleteTail()
+    {
+        if (!File.Exists(outputFile)) return;
+        using var file = new FileStream(outputFile, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
+        if (file.Length == 0) return;
+        file.Position = file.Length - 1;
+        if (file.ReadByte() == '\n') return;
+        var buffer = new byte[65536];
+        var position = file.Length;
+        long completeLength = 0;
+        while (position > 0)
+        {
+            var count = (int)Math.Min(buffer.Length, position);
+            position -= count;
+            file.Position = position;
+            var read = file.Read(buffer, 0, count);
+            var newline = Array.LastIndexOf(buffer, (byte)'\n', read - 1, read);
+            if (newline < 0) continue;
+            completeLength = position + newline + 1;
+            break;
+        }
+        // Preserve the interrupted fragment before truncating it; future appends remain valid JSONL.
+        file.Position = completeLength;
+        var backupPath = outputFile + ".incomplete-" + Guid.NewGuid().ToString("N");
+        using (var backup = File.Create(backupPath)) { file.CopyTo(backup); backup.Flush(true); }
+        file.SetLength(completeLength);
+        Plugin.Global.Log.LogWarning("[UI Capture] Preserved an incomplete trailing record before resuming capture.");
     }
 
     private sealed class CaptureRecord

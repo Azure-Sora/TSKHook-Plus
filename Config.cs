@@ -29,7 +29,7 @@ public static class TSKConfig
 
     public static void Read()
     {
-        Settings.File.Reload();
+        Settings.Reload();
         Interlocked.Exchange(ref pending, 1);
     }
 

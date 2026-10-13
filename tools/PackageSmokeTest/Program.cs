@@ -18,6 +18,9 @@ try
     Configure("2", "译文二");
     await store.UpdateAsync(client, "https://fixture/manifest", "1.4.0");
     Check(store.ReadState().Current.Version == "2" && store.ReadState().Previous.Version == "1", "update retains previous");
+    File.WriteAllText(store.PackagePath(store.ReadState().Current), "corrupted");
+    Check(await store.UpdateAsync(client, "https://fixture/manifest", "1.4.0"), "corrupted active cache is redownloaded");
+    Check(store.ReadState().Previous.Version == "1", "cache repair preserves rollback version");
     await store.RollbackAsync();
     Check(store.ReadState().Current.Version == "1", "rollback");
     Configure("3", "译文三");
@@ -42,6 +45,13 @@ try
     var json = """{"result":{"battle_result_data":{"retry_data":{"cost_name":"挑戦回数"}}}}""";
     Check(!UiJsonTranslator.TryTranslate("BattleEnd", json, index, out var result, out _, out _) && result == json,
         "identifier is protected even against hash fallback");
+    Configure("6", "本地基线");
+    var localPath = Path.Combine(root, "legacy.jsonl"); File.WriteAllBytes(localPath, handler.Asset);
+    var seeded = new TranslationPackageStore(Path.Combine(root, "seeded"));
+    await seeded.SeedLocalAsync(localPath);
+    Configure("7", "首次远程更新"); await seeded.UpdateAsync(client, "https://fixture/manifest", "1.4.0");
+    await seeded.RollbackAsync();
+    Check(seeded.ReadState().Current.Version == "legacy-local", "first remote update can roll back to preexisting local translations");
     Console.WriteLine($"PASS: {tests} update/rollback/protection assertions");
 }
 finally { if (Directory.Exists(root)) Directory.Delete(root, true); }

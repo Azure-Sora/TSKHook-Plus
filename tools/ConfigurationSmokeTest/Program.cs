@@ -24,7 +24,12 @@ try
     Check(reopened.Translation.Value && reopened.Width.Value == 1920, "new settings survive restart, old JSON not reimported");
     Check(reopened.Action.Value == MaintenanceAction.None, "persisted action cannot replay at startup");
     var edited = File.ReadAllText(cfg).Replace("WindowWidth = 1920", "WindowWidth = 1800");
-    File.WriteAllText(cfg, edited); reopened.File.Reload();
+    File.WriteAllText(cfg, edited);
+    reopened.Action.Value = MaintenanceAction.ReloadConfiguration;
+    reopened.LastResult.Value = "status must not save stale settings";
+    Check(File.ReadAllText(cfg).Contains("WindowWidth = 1800"), "maintenance action does not overwrite external edits before reload");
+    reopened.Action.Value = MaintenanceAction.None;
+    reopened.Reload();
     Check(reopened.Width.Value == 1800, "disk reload updates same config entries");
     File.WriteAllText(legacy, """{"width":-1,"height":"bad","fps":144}""");
     var bad = new PluginSettings(new ConfigFile(Path.Combine(directory, "bad.cfg"), false), legacy, warnings.Add);

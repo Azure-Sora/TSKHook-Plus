@@ -35,6 +35,8 @@ internal static class UiRuntimeController
         Client.DefaultRequestHeaders.UserAgent.ParseAdd("TSKHook/" + MyPluginInfo.PLUGIN_VERSION);
         UiTextCaptureService.Initialize();
         UiTranslationService.Initialize();
+        try { Packages.SeedLocalAsync(Path.Combine(Root, "ui_translations.jsonl")).GetAwaiter().GetResult(); }
+        catch (Exception e) { Plugin.Global.Log.LogWarning("[UI Translation] Local package seed skipped: " + e.Message); }
         LoadActiveTranslations();
         Patch.EnsureTranslationFontLoaded();
     }
@@ -108,6 +110,7 @@ internal static class UiRuntimeController
             else
             {
                 var state = Packages.ReadState();
+                if (state.Current != null) TranslationPackageStore.Verify(Packages.PackagePath(state.Current), state.Current);
                 UiTranslationService.Reload(state.Current != null ? Packages.PackagePath(state.Current) : Path.Combine(Root, "ui_translations.jsonl"));
             }
         }
@@ -161,7 +164,8 @@ internal static class UiRuntimeController
     private static void Report(string message)
     {
         Plugin.Global.Log.LogInfo("[UI Translation] " + message);
-        Notification.Popup("TSKHook", message);
+        // Upstream Popup concatenates text into a PowerShell script. Never pass remote/file errors to it.
+        TSKConfig.Settings.LastResult.Value = DateTime.Now.ToString("HH:mm:ss") + " " + message;
     }
 
     internal static void Shutdown()

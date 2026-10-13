@@ -21,10 +21,12 @@ internal sealed class ConfigurationManagerAttributes
     public string DispName;
     public int? Order;
     public bool? IsAdvanced;
+    public bool? ReadOnly;
 }
 
 public sealed class PluginSettings
 {
+    private bool reloading;
     public ConfigFile File { get; }
     public ConfigEntry<double> Speed { get; }
     public ConfigEntry<int> Fps { get; }
@@ -39,6 +41,7 @@ public sealed class PluginSettings
     public ConfigEntry<string> ManifestUrl { get; }
     public ConfigEntry<bool> LocalPreview { get; }
     public ConfigEntry<MaintenanceAction> Action { get; }
+    public ConfigEntry<string> LastResult { get; }
 
     public PluginSettings(ConfigFile config, string legacyPath, Action<string> warning)
     {
@@ -58,10 +61,24 @@ public sealed class PluginSettings
         ManifestUrl = Bind("Updates", "ManifestUrl", "https://github.com/Azure-Sora/TSKHook-UITranslations/releases/latest/download/manifest.json", "更新清单地址", "HTTPS 翻译包清单；修改后下次检查使用。", null);
         LocalPreview = Bind("Updates", "LocalPreview", false, "本地预览模式", "维护者专用：读取 ui_preview.jsonl 并监听变化；暂停公共包更新。", null);
         Action = Bind("Maintenance", "Action", MaintenanceAction.None, "执行操作", "选择后执行一次并自动恢复无操作；重新读取配置包括原 F1 的窗口与译文重载。", null);
+        LastResult = config.Bind("Maintenance", "LastResult", "尚未执行维护操作", new ConfigDescription("最近一次维护操作或更新检查的结果。", null,
+            new ConfigurationManagerAttributes { DispName = "最近结果", ReadOnly = true }));
         if (!hadConfig && System.IO.File.Exists(legacyPath)) ImportLegacy(legacyPath, warning);
         Action.Value = MaintenanceAction.None;
         config.Save();
-        config.SaveOnConfigSet = true;
+        // Commands must not save the whole in-memory configuration before a disk reload.
+        // Otherwise selecting ReloadConfiguration would overwrite the external edits it should read.
+        config.SettingChanged += (_, e) =>
+        {
+            if (!reloading && e.ChangedSetting != Action && e.ChangedSetting != LastResult) config.Save();
+        };
+    }
+
+    public void Reload()
+    {
+        reloading = true;
+        try { File.Reload(); }
+        finally { reloading = false; }
     }
 
     private ConfigEntry<T> Bind<T>(string section, string key, T value, string name, string description, AcceptableValueBase range) =>

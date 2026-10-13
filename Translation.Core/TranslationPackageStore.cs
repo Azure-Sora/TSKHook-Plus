@@ -53,6 +53,34 @@ public sealed class TranslationPackageStore
           ?? throw new InvalidDataException("Invalid package state.")
         : new PackageState();
 
+    public async Task SeedLocalAsync(string path, CancellationToken token = default)
+    {
+        await gate.WaitAsync(token);
+        try
+        {
+            if (ReadState().Current != null || !File.Exists(path)) return;
+            var index = RuntimeAsset.Load(path);
+            using var source = File.OpenRead(path);
+            using var sha = SHA256.Create();
+            var manifest = new TranslationManifest { Version = "legacy-local", Entries = index.ExactCount,
+                Size = source.Length, Sha256 = Convert.ToHexString(sha.ComputeHash(source)).ToLowerInvariant(),
+                DownloadUrl = "https://local.invalid/ui_translations.jsonl" };
+            Directory.CreateDirectory(directory);
+            var target = PackagePath(manifest);
+            var temporary = target + ".seed";
+            try
+            {
+                source.Position = 0;
+                using (var destination = File.Create(temporary)) await source.CopyToAsync(destination, token);
+                Verify(temporary, manifest);
+                File.Move(temporary, target, true);
+                WriteState(new PackageState { Current = manifest });
+            }
+            finally { if (File.Exists(temporary)) File.Delete(temporary); }
+        }
+        finally { gate.Release(); }
+    }
+
     public async Task<bool> UpdateAsync(HttpClient client, string manifestUrl, string pluginVersion,
         CancellationToken token = default)
     {
@@ -70,8 +98,8 @@ public sealed class TranslationPackageStore
             var destination = PackagePath(manifest);
             if (state.Current?.Sha256 == manifest.Sha256 && File.Exists(destination))
             {
-                Verify(destination, manifest);
-                return false;
+                try { Verify(destination, manifest); return false; }
+                catch (Exception e) when (e is InvalidDataException or IOException) { /* Redownload a corrupted cached package. */ }
             }
             Directory.CreateDirectory(directory);
             var temporary = Path.Combine(directory, Guid.NewGuid().ToString("N") + ".download");
@@ -82,7 +110,7 @@ public sealed class TranslationPackageStore
                 Verify(temporary, manifest);
                 token.ThrowIfCancellationRequested();
                 File.Move(temporary, destination, true);
-                WriteState(new PackageState { Current = manifest, Previous = state.Current });
+                WriteState(new PackageState { Current = manifest, Previous = state.Current?.Sha256 == manifest.Sha256 ? state.Previous : state.Current });
                 return true;
             }
             finally { if (File.Exists(temporary)) File.Delete(temporary); }
