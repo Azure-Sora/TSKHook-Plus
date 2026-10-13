@@ -1,56 +1,39 @@
-# TSKHook
+# TSKHook-Plus
 
+基于 [TSKModding/TSKHook](https://github.com/TSKModding/TSKHook) 的 UI 文本汉化插件。
 
-## 关于这个 UI 汉化 Fork
+## 插件与翻译工作台
 
-本 Fork 基于 [TSKModding/TSKHook](https://github.com/TSKModding/TSKHook)，目标是在原项目剧情翻译功能之外，补充游戏内常用 UI 文本的简体中文翻译。UI 汉化数据的整理、编译与维护方法请参阅 [translations/ui/README.md](translations/ui/README.md)。
+本仓只维护游戏集成、配置、捕获、字体兼容和翻译包更新。原文、译文、术语、批量工具及独立 Windows 工作台已迁至 [TSKHook-UITranslations](https://github.com/Azure-Sora/TSKHook-UITranslations)。图片导出与替换实验已退出维护范围。
 
-> [!note]
-> 由于游戏的按需加载文本策略，我只能获取到我有的角色/我的角色现在以及更高的等级的技能，的文本，常用角色的低等级技能翻译可能会大量缺失，目前没找到解决方案，如果发现角色技能没翻译可以尝试查看满级技能预览。
+## 安装与配置
 
-> [!warning]
-> 本项目的汉化文本工作全部由大模型进行，我只进行了少量的校对（不到十分之一），所以可能存在大量文本问题
+保留游戏已有的 BepInEx 6 / IL2CPP 安装。将发行包的 `TSKHook.dll` 和 `TSKHook.Translation.Core.dll` 一起放入 `BepInEx/plugins`。安装 [anosu/ConfigurationManager 的 IL2CPP 发行版](https://github.com/anosu/BepInEx.ConfigurationManager/releases)，其中 `ConfigurationManager.dll` 和 `BepInEx.KeyboardShortcut.dll` 必须一起安装。不要用构建依赖替换游戏 BepInEx 核心程序集。
 
-### 汉化效果
+按 **F1** 打开设置；管理器负责此按键，原插件不再用 F1 重载。首次运行将旧 `plugins/config.json` 导入 BepInEx 配置，旧文件保留但不再作为配置源。所有设置和 F11 使用同一份配置。需要重新读取磁盘配置时，在 **Maintenance / 执行操作** 中选择“重新读取并应用配置”；操作执行后自动恢复“无操作”。
 
-![ui_trans](./img/ui_trans.png)
+界面中有设置生效时机说明。ConfigurationManager 未安装时仍可在关闭游戏后编辑 `BepInEx/config/` 中的插件配置。安装兼容性、字体和游戏内输入仍需要按本游戏验证。
 
-### 安装方法
+## UI 汉化与更新
 
-- 安装原项目
-- 从本仓库的 [Releases](https://github.com/Azure-Sora/TSKHook-Plus/releases) 下载 `TSKHook.dll` 和 `ui_translations.jsonl`
-- 使用 `TSKHook.dll` 替换 `Twinkle_StarKnightsX\BepInEx\plugins` 下的原 DLL
-- 将 `ui_translations.jsonl` 放到 `Twinkle_StarKnightsX\BepInEx\plugins\TSKHook\ui_translations.jsonl`
+默认启动后检查翻译包，之后每小时检查一次；失败保留已有译文。维护菜单可手动检查、重载或回退上一份远程翻译包。旧 `plugins/TSKHook/ui_translations.jsonl` 可继续作为离线初始译文。F10 保留剧情缓存清理并重新加载当前 UI 包。
 
-### 已实现的功能
+维护者启用捕获后，插件将记录写入 `plugins/TSKHook/ui_capture/ui_texts_v2.jsonl`；工作台自动整理与翻译。开启“本地预览模式”后读取工作台生成的 `ui_preview.jsonl` 并暂停公共包更新。新包不会强制刷新所有已打开页面，必要时重新进入页面。
 
-- 从游戏网络响应中结构化采集 UI 文本，并按稳定身份增量合并、去重和分类。
-- 提供适合批量翻译的源文件、术语约束、翻译规则，以及面向大语言模型的翻译工作流。
-- 将翻译数据编译为运行时 JSONL 文件，由 Mod 建立内存索引并快速替换文本，避免高频界面逐条扫描翻译文件。
-- 覆盖角色名、技能名称与说明、物品、装备、任务、商店、奖励等大量常用 UI 文本。
-- 对源文版本变化提供兼容匹配，并检查占位符、富文本标签、数字与换行等容易被翻译破坏的内容。
-- 补充中文字体回退与 TextMeshPro 动态字体处理，解决缺字和动态 Atlas 不可写等问题。
+文本捕获仍受游戏按需加载影响；未加载的角色/技能及图片文字不在自动覆盖范围。
 
-### 当前没有实现的内容
+## 开发
 
-- 尚未完整汉化写在图片中的文字，例如部分导航按钮、活动入口和大型功能按钮。
-- 尚未提供将任意汉化图片自动重新打包回原 Unity AssetBundle 或 Spine Atlas 的通用工具链。
-- Sprite、SpriteAtlas、Texture2D 与 Spine Atlas 的运行时导出，以及普通 Sprite 的运行时替换已经完成实验性实现并通过实机测试，但目前单独保留在实验分支中，暂未合入主分支继续扩展。
+fork 新增的实现和维护文件集中在 `Extensions/`：根层是游戏集成与配置，`Core/` 是工作台共用的纯托管协议库，`Tests/` 是隔离验证，`docs/` 和 `release/` 分别保存说明与发布资产。上游原有源码保持原路径。
 
-### 暂停图片汉化的技术原因
+- [实施方案](Extensions/docs/ui-translation-modernization.md)
+- [翻译包协议](Extensions/docs/translation-package-format.md)
+- [交付与验证记录](Extensions/docs/verification.md)
+- 构建：`dotnet build -c Release -p:GamePath=游戏目录`
+- 发布前：`./Extensions/Stage-Release.ps1 -GamePath 游戏目录`，审阅并提交两个 DLL，再创建插件版本标签。
+- 纯托管验证入口位于 `Extensions/Tests/`；这些测试不代表游戏内验证。
 
-游戏中相当一部分视觉文字并不是普通文本组件，而是 Unity Sprite Atlas 或 Spine `SkeletonGraphic` 的组成部分。紧密打包的 Sprite 不能只依靠矩形坐标可靠裁剪；Spine 按钮还会把多个 Atlas 区域通过骨骼、插槽、动画和材质重新组合。完整替换时必须同时保持 UV、区域尺寸、透明度或预乘 Alpha、材质引用及对象生命周期一致。
-
-此外，这些资源可能由游戏按需下载并缓存，界面切换时对象还会被销毁和重新创建。要把实验性替换扩展成稳定、可维护且能适应游戏更新的通用方案，需要继续解决资源身份识别、加载时机、重载和清理，以及 Spine 多区域重组等问题。综合实现成本和维护风险后，主分支目前优先维护结构化 UI 文本汉化。
-
-### 欢迎参与和共享成果
-
-欢迎通过 Issue 或 Pull Request 分享新的文本采集结果、翻译与术语修正、测试反馈，以及更可靠的 Unity/Spine 图片资源替换方案。提交采集数据前请移除账号等私人信息；分享图片相关成果时，也请避免直接分发完整的原始游戏资源包。
-
-### AI注意
-
-- 本fork主要使用 GPT 5.6 sol 进行开发
-- 汉化工作由 deepseek v4-pro 与 deepseek v4-flash 进行
+以下保留上游功能介绍；配置入口以本页说明为准。
 
 ## [中文](README_TC.md)
 
@@ -78,7 +61,7 @@ location `C:\Users\<username>\Twinkle_StarKnightsX`
 
 ## Config
 
-You can edit config.json(`./BepInEx/plugins/config.json`) if you don't like default settings.
+Press F1 to open ConfigurationManager. Legacy JSON settings are imported once; use the generated BepInEx configuration afterward.
 
 | Name      | Default Value | Description                                                  |
 |-----------|---------------|--------------------------------------------------------------|
@@ -93,7 +76,7 @@ You can edit config.json(`./BepInEx/plugins/config.json`) if you don't like defa
 
 | Key  | Type        | Description                                                                   |
 |------|-------------|-------------------------------------------------------------------------------|
-| F1   | Reload      | Reload TSKHook config, useful when you need to resize game window size        |
+| F1   | Settings    | Open ConfigurationManager; use Maintenance to reload configuration |
 | F5   | Freeze      | Freeze game, mean set game speed to 0x                                        |
 | F6   | Reset       | Reset game speed to 1x/normal                                                 | 
 | F7   | Decrease    | Decrease game speed (2-0.5 etc), depends on your `speed` config               | 

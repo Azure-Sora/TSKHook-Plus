@@ -18,6 +18,7 @@ public class Patch
 
     public static void Initialize()
     {
+        Harmony.CreateAndPatchAll(typeof(KnownGameLogFilter));
         Harmony.CreateAndPatchAll(typeof(Patch));
         Harmony.CreateAndPatchAll(typeof(NetworkCapturePatch));
         Harmony.CreateAndPatchAll(typeof(UiFontFallbackPatch));

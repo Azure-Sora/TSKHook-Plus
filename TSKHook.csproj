@@ -4,8 +4,9 @@
     <TargetFramework>net6.0</TargetFramework>
     <AssemblyName>TSKHook</AssemblyName>
     <Description>TSKHook</Description>
-    <Version>1.3.5-m1.6</Version>
+    <Version>1.4.4</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <LangVersion>latest</LangVersion>
     <RestoreAdditionalProjectSources>
       https://api.nuget.org/v3/index.json;
@@ -15,19 +16,17 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.*" IncludeAssets="compile" />
-    <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*" />
+    <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.785" IncludeAssets="compile" />
+    <PackageReference Include="BepInEx.PluginInfoProps" Version="2.1.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Remove="tools\**\*.cs" />
-    <None Include="translations\ui\runtime\ui_translations.jsonl"
-          CopyToOutputDirectory="PreserveNewest"
-          TargetPath="TSKHook\ui_translations.jsonl" />
+    <Compile Include="*.cs;Extensions/*.cs" />
+    <ProjectReference Include="Extensions/Core/TSKHook.Translation.Core.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
-    <GamePath>C:\Users\husky\Twinkle_StarKnightsX</GamePath>
+    <GamePath Condition="'$(GamePath)' == ''">C:\Users\husky\Twinkle_StarKnightsX</GamePath>
   </PropertyGroup>
 	
   <ItemGroup>
@@ -44,7 +43,7 @@
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="copy config.json $(OutDir)&#xD;&#xA;copy SS_Notification.ps1 $(OutDir)" />
+    <Copy SourceFiles="SS_Notification.ps1" DestinationFolder="$(OutDir)" />
   </Target>
 	
 </Project>

@@ -1,0 +1,84 @@
+using System;
+using System.Collections.Generic;
+
+namespace TSKHook;
+
+public sealed class UiTranslationIndex
+{
+    public static readonly UiTranslationIndex Empty =
+        new(new Dictionary<string, UiRuntimeTranslation>(StringComparer.Ordinal));
+
+    private readonly IReadOnlyDictionary<string, UiRuntimeTranslation> exact;
+    private readonly IReadOnlyDictionary<string, UiRuntimeTranslation> uniqueBySourceHash;
+
+    public UiTranslationIndex(IReadOnlyDictionary<string, UiRuntimeTranslation> translations)
+    {
+        exact = translations ?? new Dictionary<string, UiRuntimeTranslation>(StringComparer.Ordinal);
+
+        var unique = new Dictionary<string, UiRuntimeTranslation>(StringComparer.Ordinal);
+        var ambiguous = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var entry in exact.Values)
+        {
+            if (string.IsNullOrEmpty(entry.SourceHash) || ambiguous.Contains(entry.SourceHash))
+            {
+                continue;
+            }
+
+            if (!unique.TryGetValue(entry.SourceHash, out var existing))
+            {
+                unique[entry.SourceHash] = entry;
+                continue;
+            }
+
+            if (!string.Equals(existing.Translation, entry.Translation, StringComparison.Ordinal))
+            {
+                unique.Remove(entry.SourceHash);
+                ambiguous.Add(entry.SourceHash);
+            }
+        }
+
+        uniqueBySourceHash = unique;
+        AmbiguousSourceHashCount = ambiguous.Count;
+    }
+
+    public int ExactCount => exact.Count;
+
+    public int UniqueSourceHashCount => uniqueBySourceHash.Count;
+
+    public int AmbiguousSourceHashCount { get; }
+
+    public bool TryGetUniqueBySourceHash(string sourceHash, out string translation)
+    {
+        translation = null;
+        if (!uniqueBySourceHash.TryGetValue(sourceHash, out var entry) ||
+            string.IsNullOrWhiteSpace(entry.Translation))
+        {
+            return false;
+        }
+
+        translation = entry.Translation;
+        return true;
+    }
+
+    public bool TryGet(string key, string sourceHash, out string translation, out bool usedHashFallback)
+    {
+        usedHashFallback = false;
+        translation = null;
+
+        if (exact.TryGetValue(key, out var exactEntry) &&
+            string.Equals(exactEntry.SourceHash, sourceHash, StringComparison.Ordinal) &&
+            !string.IsNullOrWhiteSpace(exactEntry.Translation))
+        {
+            translation = exactEntry.Translation;
+            return true;
+        }
+
+        if (!TryGetUniqueBySourceHash(sourceHash, out translation))
+        {
+            return false;
+        }
+
+        usedHashFallback = true;
+        return true;
+    }
+}

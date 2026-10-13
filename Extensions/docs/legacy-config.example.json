@@ -1,0 +1,11 @@
+{
+    "speed": 0.5,
+    "fps": 60,
+    "translation": true,
+    "width": 1280,
+    "height": 720,
+    "zoom": 1.0,
+    "uiTranslation": true,
+    "uiCapture": false,
+    "uiCaptureFlushSeconds": 5
+}
