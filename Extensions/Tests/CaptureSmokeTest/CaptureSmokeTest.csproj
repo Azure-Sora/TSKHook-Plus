@@ -6,6 +6,6 @@
     <Nullable>disable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\Translation.Core\TSKHook.Translation.Core.csproj" />
+    <ProjectReference Include="../../Core/TSKHook.Translation.Core.csproj" />
   </ItemGroup>
 </Project>

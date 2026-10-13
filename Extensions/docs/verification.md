@@ -1,5 +1,16 @@
 # 本轮交付与验证（2026-10-13）
 
+## 1.4.4 仓库聚合与发布前验证
+
+- fork 新增的 39 个源码、项目、文档、测试和发布文件统一归入 `Extensions/`，新增顶层目录从 9 个减少为 `Extensions/` 与 `.github/` 两个。原仓已有文件保留原路径，`config.json` 恢复为原仓内容；不会回退已使用的 BepInEx 配置迁移。
+- 22 个搬迁的 C# 文件按 Git 换行规范逐文件对比，源码内容变化为 0。主项目显式编译根目录及 Extensions 根层源码，核心和各测试项目继续隔离。旧路径的忽略构建缓存已移入 `.local/planning-archive/pre-consolidation-build-output/`；本地捕获与译文数据不在搬迁范围。
+- 原仓基线为 TSKModding/TSKHook `defc504`；fork 的 `origin/master` (`9c3ecdf`) 已包含在实现分支历史中。重试消耗名称仍由 TranslationProtection 在精确匹配与哈希回退之前保护。
+- 新路径验证通过：运行时 27 项、捕获过滤 10 项、实际 BepInEx 配置 11 项、托管捕获生命周期 7 项、更新/回退/保护 16 项，以及实际 Harmony/BepInEx 日志派发与 8 个非匹配事件保留。
+- 使用本机游戏 interop 程序集构建并暂存插件 1.4.4 两个 DLL，0 错误；保留此前 NuGet 依赖替代与 LIB 路径警告。发布工具位于 `Extensions/Stage-Release.ps1`，版本标签流程从 `Extensions/release/` 读取对应提交的两份程序集。
+- 本轮只整理、构建和发布仓库内容，未改游戏安装，未追加游戏内画面验收。工作台固定共享核心引用也必须随新路径更新并通过自身回归检查。
+
+## 此前交付记录
+
 实现分支：`codex/ui-translation-modernization`。上游 PR 尚未创建。10 月 13 日已安装到游戏并完成下列基础交互实测；未覆盖的验收仍单独保留。
 
 ## 已验证

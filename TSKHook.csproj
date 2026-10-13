@@ -4,8 +4,9 @@
     <TargetFramework>net6.0</TargetFramework>
     <AssemblyName>TSKHook</AssemblyName>
     <Description>TSKHook</Description>
-    <Version>1.4.3</Version>
+    <Version>1.4.4</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <LangVersion>latest</LangVersion>
     <RestoreAdditionalProjectSources>
       https://api.nuget.org/v3/index.json;
@@ -20,9 +21,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Remove="tools\**\*.cs" />
-    <Compile Remove="Translation.Core\**\*.cs" />
-    <ProjectReference Include="Translation.Core\TSKHook.Translation.Core.csproj" />
+    <Compile Include="*.cs;Extensions/*.cs" />
+    <ProjectReference Include="Extensions/Core/TSKHook.Translation.Core.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

@@ -24,12 +24,14 @@
 
 ## 开发
 
-- [实施方案](docs/ui-translation-modernization.md)
-- [翻译包协议](docs/translation-package-format.md)
-- [交付与验证记录](docs/verification.md)
+fork 新增的实现和维护文件集中在 `Extensions/`：根层是游戏集成与配置，`Core/` 是工作台共用的纯托管协议库，`Tests/` 是隔离验证，`docs/` 和 `release/` 分别保存说明与发布资产。上游原有源码保持原路径。
+
+- [实施方案](Extensions/docs/ui-translation-modernization.md)
+- [翻译包协议](Extensions/docs/translation-package-format.md)
+- [交付与验证记录](Extensions/docs/verification.md)
 - 构建：`dotnet build -c Release -p:GamePath=游戏目录`
-- 发布前：`./scripts/Stage-Release.ps1 -GamePath 游戏目录`，审阅并提交两个 DLL，再创建插件版本标签。
-- 纯托管验证入口位于 `tools/`；这些测试不代表游戏内验证。
+- 发布前：`./Extensions/Stage-Release.ps1 -GamePath 游戏目录`，审阅并提交两个 DLL，再创建插件版本标签。
+- 纯托管验证入口位于 `Extensions/Tests/`；这些测试不代表游戏内验证。
 
 以下保留上游功能介绍；配置入口以本页说明为准。
 
