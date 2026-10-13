@@ -16,6 +16,38 @@ public static class UiTextKeyBuilder
         IReadOnlyDictionary<string, string> context)
     {
         context ??= new Dictionary<string, string>(StringComparer.Ordinal);
+        var descriptor = BuildBase(apiName, path, source, sourceHash, context);
+        if (!UsesSourceVariantIdentity(apiName, path, context)) return descriptor;
+        var identity = new SortedDictionary<string, string>(descriptor.Identity, StringComparer.Ordinal) { ["source_hash"] = sourceHash };
+        // Append without reconstructing scope: retain the exact legacy semantic identity.
+        return new UiTextKeyDescriptor(descriptor.Key + ":source_hash=" + sourceHash, descriptor.Category, descriptor.Field, identity);
+    }
+
+    private static bool UsesSourceVariantIdentity(string apiName, string path, IReadOnlyDictionary<string, string> context)
+    {
+        var field = path[(path.LastIndexOf('.') + 1)..];
+        return (context.ContainsKey("unit_id") && !path.Contains("enemy_list", StringComparison.OrdinalIgnoreCase) &&
+                field is "character_name" or "unit_name" or "character_name_kana" or "full_name") ||
+            (path.Contains("sister_unit_list", StringComparison.OrdinalIgnoreCase) && path.Contains("skill", StringComparison.OrdinalIgnoreCase) && field == "skill_detail") ||
+            (apiName == "BossRushEventTop" && path.Contains(".stage_data", StringComparison.OrdinalIgnoreCase) && field == "tab_name") ||
+            (apiName == "MainStageDetail" && field == "stage_name");
+    }
+
+    public static bool TryUpgradeCapturedKey(string apiName, string path, string source, string sourceHash,
+        IReadOnlyDictionary<string, string> context, string oldKey, out UiTextKeyDescriptor descriptor)
+    {
+        if (TryUpgradeEnemyDataKey(apiName, path, source, sourceHash, context, oldKey, out descriptor)) return true;
+        if (!UsesSourceVariantIdentity(apiName, path, context)) return false;
+        var legacy = BuildBase(apiName, path, source, sourceHash, context).Key;
+        if (oldKey != legacy && oldKey != legacy + "#" + sourceHash[..Math.Min(8, sourceHash.Length)]) return false;
+        descriptor = Build(apiName, path, source, sourceHash, context);
+        return descriptor.Key != oldKey;
+    }
+
+    private static UiTextKeyDescriptor BuildBase(string apiName, string path, string source, string sourceHash,
+        IReadOnlyDictionary<string, string> context)
+    {
+        context ??= new Dictionary<string, string>(StringComparer.Ordinal);
         var field = path[(path.LastIndexOf('.') + 1)..].Replace("[]", "", StringComparison.Ordinal);
 
         if (field is "limit_date_text" or "limit_time")

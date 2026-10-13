@@ -111,17 +111,33 @@ Assert(UiJsonTranslator.TryTranslate("SubdueEventTop", enemyJson, enemyIndex, ou
     out var enemyCount, out var enemyFallback) && enemyCount == 2 && enemyFallback == 0 &&
     JsonDocument.Parse(enemyOutput).RootElement.GetProperty("result").GetProperty("stage_list")[0].GetProperty("enemy_data").GetProperty("character_name").GetString() == "露妮亚" &&
     JsonDocument.Parse(enemyOutput).RootElement.GetProperty("result").GetProperty("stage_list")[1].GetProperty("enemy_data").GetProperty("character_name").GetString() == "洛洛特", "enemy names must both match exact runtime keys", failures);
-Assert(Key("SubdueEventTop", enemyPath, "ルネア", Context(("unit_id", "7"))) == "unit:unit_id=7:character_name",
-    "numbered unit identities remain unchanged", failures);
+Assert(Key("SubdueEventTop", enemyPath, "ルネア", Context(("unit_id", "7"))) == "unit:unit_id=7:character_name:source_hash=" + UiJsonTranslator.Sha256("ルネア"),
+    "numbered unit identities preserve semantic id and distinguish source variants", failures);
 Assert(UiTextKeyBuilder.TryUpgradeEnemyDataKey("SubdueEventTop", enemyPath, "ルネア", UiJsonTranslator.Sha256("ルネア"),
     enemyContext, "misc:SubdueEventTop:quest_id=300039:shop_id=2242:character_name#61ea8877", out var upgrade) && upgrade.Key == enemyA,
     "legacy conflict identity upgrades to runtime key", failures);
+
+var variantCases = new[]
+{
+    (Api: "BossRushEventTop", Path: "$.result.stage_data[].tab_name", Context: Context(("event_id", "6016"), ("quest_id", "600016")), Sources: new[] { "チャレンジ", "ストーリー" }),
+    (Api: "MainStageDetail", Path: "$.result.stage_name", Context: Context(("stage_id", "10000199")), Sources: new[] { "第65任務 一括解放ステージ", "第66任務 一括解放ステージ" }),
+    (Api: "SubdueEventTop", Path: "$.result.effect_sister_unit_list[].unit_name", Context: Context(("unit_id", "1001001")), Sources: new[] { "流星の姫君", "シスター" }),
+    (Api: "SisterList", Path: "$.result.sister_unit_list[].active_skill_data.skill_detail", Context: Context(("sister_unit_id", "1001001"), ("active_skill_id", "21001001"), ("lv", "5")), Sources: new[] { "ATK144％アップ", "ATK<color=#16C97B>144</color>％アップ" })
+};
+foreach (var variant in variantCases)
+{
+    var firstKey = Key(variant.Api, variant.Path, variant.Sources[0], variant.Context);
+    Assert(firstKey != Key(variant.Api, variant.Path, variant.Sources[1], variant.Context), "captured variant has distinct exact key: " + variant.Api, failures);
+    var legacy = firstKey[..firstKey.LastIndexOf(":source_hash=", StringComparison.Ordinal)];
+    Assert(UiTextKeyBuilder.TryUpgradeCapturedKey(variant.Api, variant.Path, variant.Sources[0], UiJsonTranslator.Sha256(variant.Sources[0]),
+        variant.Context, legacy, out var descriptor) && descriptor.Key == firstKey, "legacy variant migration matches runtime: " + variant.Api, failures);
+}
 
 if (failures.Count == 0)
 {
     RunStructuredLookupBenchmark();
     RunRenderedLookupBenchmark();
-    Console.WriteLine("PASS: 19 runtime translation assertions");
+    Console.WriteLine("PASS: 27 runtime translation assertions");
     return 0;
 }
 
