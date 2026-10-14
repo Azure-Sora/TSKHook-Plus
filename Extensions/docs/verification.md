@@ -134,3 +134,14 @@
 用户随后授权推送与公开发布。Stage-Release 按已提交源 648e6a1 重建并暂存单 DLL：154,624 字节，SHA-256 95a40b03d1077a7259850448d3f834ee4bb94b3af9d4b7e02f9b7de2eafd472d。与实机 DLL 48a56b... 相比，567 个方法签名/IL/异常区域及内嵌资源逐项相同；差异是构建元数据，未改变行为。
 
 发布版本为插件 v1.6.0、文字 translations-2026.10.14.2、图片 images-2026.10.14.3；图片与 image-channel 使用 latest=false，文字继续独占其仓库的 latest。公开下载校验、分支与标签及 CI 证据另存本机 .local/release-160，本节的发布准备本身不代表公开上传已经成功。
+
+
+## 2026-10-14 公开发布完成
+
+- 插件 v1.6.0：标签与发布提交7dc5daa，只有 TSKHook.dll 一个附件，154,624 字节，SHA-256 95a40b03d1077a7259850448d3f834ee4bb94b3af9d4b7e02f9b7de2eafd472d；Publish Release 38580959059 成功。
+- 文字 translations-2026.10.14.2：发布提交2fde1d5，71,892 条，零 fatal、270 条保留提示；manifest.json、ui_translations.jsonl、validation.json 三附件。
+- 图片 images-2026.10.14.3：同提交2fde1d5，ui_images.zip 和 image-manifest.json 两附件；固定 image-channel 仅发布图片清单，均 latest=false。文字 latest 仍为 translations-2026.10.14.2。翻译仓 Verify workbench 38580946343 成功。
+
+匿名从公开 browser_download_url 及文字 latest、图片固定入口下载七项资源/清单，全部与审核产物逐字节相同。直接引用公开 DLL 的包存储客户端，使用插件默认 User-Agent 和配置的 45 秒 HttpClient timeout，从公开入口下载并校验文字与图片；读回文字71,892条、图片41 Sprite/16 Spine/31标题，二次检查均为 no-op。此处是公开协议与附件验证，不表示重跑了全部游戏页面。
+
+链接：[插件](https://github.com/Azure-Sora/TSKHook-Plus/releases/tag/v1.6.0)、[文字](https://github.com/Azure-Sora/TSKHook-UITranslations/releases/tag/translations-2026.10.14.2)、[图片](https://github.com/Azure-Sora/TSKHook-UITranslations/releases/tag/images-2026.10.14.3)。公开校验与更新客户端证据在忽略目录 .local/release-160/public-verification.json、public-client-verification.json 和 ci-state.json。原游戏仍保留已验收的功能等价开发构建；本轮发布未再次覆盖正在运行的游戏或改变其原本预览配置。
