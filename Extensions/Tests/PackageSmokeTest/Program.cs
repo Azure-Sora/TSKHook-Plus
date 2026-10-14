@@ -48,6 +48,26 @@ try
     var json = """{"result":{"battle_result_data":{"retry_data":{"cost_name":"挑戦回数"}}}}""";
     Check(!UiJsonTranslator.TryTranslate("BattleEnd", json, index, out var result, out _, out _) && result == json,
         "identifier is protected even against hash fallback");
+    var nextJson = """{"result":{"battle_result_data":{"next_data":{"cost_name":"挑戦回数"}}}}""";
+    var nextKey = UiTextKeyBuilder.Build("BattleEnd", "$.result.battle_result_data.next_data.cost_name", text,
+        UiJsonTranslator.Sha256(text), new Dictionary<string, string>()).Key;
+    var unsafeIndex = new UiTranslationIndex(new Dictionary<string, UiRuntimeTranslation>
+    { [nextKey] = new(UiJsonTranslator.Sha256(text), "挑战次数") });
+    foreach (var script in new[] { ChineseScript.Original, ChineseScript.Simplified, ChineseScript.Traditional })
+        Check(!UiJsonTranslator.TryTranslate("BattleEnd", nextJson, unsafeIndex, out result, out _, out _, script) && result == nextJson,
+            "next-stage identifier is protected against exact matching and script conversion");
+    Check(!unsafeIndex.TryGetUniqueBySourceHash(UiJsonTranslator.Sha256(text), out _), "bare identifier has no hash fallback");
+    Check(!unsafeIndex.TryGetRenderedText(text, out _) && !UiRenderedTextTranslator.TryTranslate(text, unsafeIndex, out _),
+        "bare identifier is protected in rendered text");
+    var otherJson = """{"cost_name":"挑戦回数"}""";
+    Check(!UiJsonTranslator.TryTranslate("OtherApi", otherJson, index, out result, out _, out _) && result == otherJson,
+        "bare identifier survives unknown API paths");
+    var staminaIndex = new UiTranslationIndex(new Dictionary<string, UiRuntimeTranslation>
+    { ["stamina"] = new(UiJsonTranslator.Sha256("スタミナ"), "体力") });
+    var staminaJson = """{"next_data":{"cost_name":"スタミナ"},"name":"スタミナ"}""";
+    Check(UiJsonTranslator.TryTranslate("BattleEnd", staminaJson, staminaIndex, out result, out var replacements, out _) &&
+        replacements == 1 && JsonDocument.Parse(result).RootElement.GetProperty("next_data").GetProperty("cost_name").GetString() == "スタミナ",
+        "next cost identifier stays original while ordinary display labels still translate");
     Configure("6", "本地基线");
     var localPath = Path.Combine(root, "legacy.jsonl"); File.WriteAllBytes(localPath, handler.Asset);
     var seeded = new TranslationPackageStore(Path.Combine(root, "seeded"));

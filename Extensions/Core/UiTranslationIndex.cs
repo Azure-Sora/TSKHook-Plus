@@ -70,6 +70,7 @@ public sealed class UiTranslationIndex
     public bool TryGetRenderedText(string source, out string translation)
     {
         translation = null;
+        if (TranslationProtection.IsProtectedSource(source)) return false;
         if (renderedBySourceHash.TryGetValue(UiJsonTranslator.Sha256(source), out var exactRow))
         {
             translation = exactRow.Translation;
@@ -87,6 +88,7 @@ public sealed class UiTranslationIndex
     public bool TryGetUniqueBySourceHash(string sourceHash, out string translation)
     {
         translation = null;
+        if (TranslationProtection.IsProtectedSourceHash(sourceHash)) return false;
         if (!uniqueBySourceHash.TryGetValue(sourceHash, out var entry) ||
             string.IsNullOrWhiteSpace(entry.Translation))
         {
@@ -101,6 +103,8 @@ public sealed class UiTranslationIndex
     {
         usedHashFallback = false;
         translation = null;
+
+        if (TranslationProtection.IsProtectedSourceHash(sourceHash)) return false;
 
         if (exact.TryGetValue(key, out var exactEntry) && !exactEntry.RenderedOnly &&
             string.Equals(exactEntry.SourceHash, sourceHash, StringComparison.Ordinal) &&

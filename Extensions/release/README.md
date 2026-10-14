@@ -8,6 +8,12 @@ When upgrading from a two-DLL plugin release, close the game, replace `TSKHook.d
 Translation data and workbench releases live in Azure-Sora/TSKHook-UITranslations. ConfigurationManager and its keyboard-shortcut companion are installed from anosu/BepInEx.ConfigurationManager IL2CPP releases.
 
 
+## v1.6.1
+
+Urgent challenge-count control-identifier fix. Both BattleEnd retry_data.cost_name and next_data.cost_name remain original. The bare 挑戦回数 identifier is protected against exact/hash/rendered fallback. Assembly version 1.6.1.0; 155,136 bytes. Staged DLL passed 24 package/update/rollback/protection assertions; legacy/static UI regression passed 27+15 assertions. Real-game button retest is pending.
+
+Upgrade after closing the game by replacing TSKHook.dll; text package 2026.10.15.1 removes the nine remaining next-stage translations and is independently auto-updatable.
+
 ## v1.6.0
 
 Staged from runtime source 648e6a1. Assembly version 1.6.0.0, 154,624 bytes; SHA-256 95a40b03d1077a7259850448d3f834ee4bb94b3af9d4b7e02f9b7de2eafd472d.
