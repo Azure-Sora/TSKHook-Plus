@@ -22,6 +22,8 @@ internal static class StaticUiRuntimeTests
             ["static-ui:date"] = new(UiJsonTranslator.Sha256("{0}まで"), "截至{0}", true, "{0}まで")
         });
         Check(UiRenderedTextTranslator.TryTranslate(menu, index, out var output) && output == "菜单", "static UI exact rendered lookup");
+        Check(!UiRenderedTextTranslator.TryTranslate("属性", new UiTranslationIndex(new Dictionary<string, UiRuntimeTranslation>
+        { ["noop"] = new(UiJsonTranslator.Sha256("属性"), "属性", true) }), out _), "identical display values must not dirty TMP meshes repeatedly");
         Check(!index.TryGet("static-ui:menu", UiJsonTranslator.Sha256(menu), out _, out _), "rendered-only rows cannot be used through JSON exact lookup");
         var json = "{\"result\":{\"label\":\"メニュー\"}}";
         Check(!UiJsonTranslator.TryTranslate("HomeData", json, index, out var unchanged, out _, out _) && unchanged == json,

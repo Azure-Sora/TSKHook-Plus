@@ -11,6 +11,7 @@ public static class UiRenderedTextTranslator
             return false;
         }
 
-        return translations.TryGetRenderedText(source, out translation);
+        return translations.TryGetRenderedText(source, out translation) &&
+            !string.Equals(source, translation, System.StringComparison.Ordinal);
     }
 }
