@@ -10,6 +10,8 @@ obj/
 *.log
 TestResults/
 coverage/
+__pycache__/
+*.py[cod]
 
 # Codex local planning and one-off investigation notes
 task_plan.md
