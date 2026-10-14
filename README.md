@@ -16,6 +16,8 @@
 
 ## UI 汉化与更新
 
+当前推荐 [插件 v1.6.1](https://github.com/Azure-Sora/TSKHook-Plus/releases/tag/v1.6.1) 和 [文字包 2026.10.15.1](https://github.com/Azure-Sora/TSKHook-UITranslations/releases/tag/translations-2026.10.15.1)。紧急修复“挑戦回数”控制标识被翻译导致的按钮异常，同时保护重试及下一关消耗字段；详见 [修复说明](Extensions/docs/challenge-count-hotfix-2026-10-15.md)。关闭游戏后替换插件 DLL，重新启动并重新进入结果页；文字包可独立自动更新。本次保护逻辑已通过托管回归，真实游戏按钮尚待复测。
+
 默认启动后检查翻译包，之后每小时检查一次；失败保留已有译文。维护菜单可手动检查、重载或回退上一份远程翻译包。旧 `plugins/TSKHook/ui_translations.jsonl` 可继续作为离线初始译文。F10 保留剧情缓存清理并重新加载当前 UI 包。
 
 1.6.0 在右下角使用 Unity 小弹窗显示文字/图片检查、下载进度和结果；文字与图片独立版本、独立更新和回退。图片源及构建工具在翻译仓，插件构建只输出运行时 DLL。F1 → Translation → 中文简繁转换可选择保持原样、简体或繁体；只逐字转换译文，图片字形由图片包决定。详见 [资源更新与简繁配置](Extensions/docs/resource-updates-and-script.md)。新 DLL 已完成限定实机验收，范围见验证记录。插件标签 v1.6.0；配套文字 translations-2026.10.14.2 和图片 images-2026.10.14.3 在翻译仓独立发布。
