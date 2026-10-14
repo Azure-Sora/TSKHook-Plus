@@ -17,12 +17,16 @@ try
     Check(!settings.Translation.Value && !settings.UiTranslation.Value && settings.Capture.Value, "legacy toggles");
     Check(settings.FlushSeconds.Value == 2 && warnings.Count == 0, "legacy flush");
     Check(File.Exists(legacy), "legacy file preserved");
+    Check(settings.Script.Value == ChineseScript.Original, "conversion defaults to original translation");
+    Check(settings.ManifestUrl.Value != settings.ImageManifestUrl.Value && settings.ImageManifestUrl.Value.Contains("image-channel"), "separate resource manifests");
+    settings.Script.Value = ChineseScript.Traditional;
     settings.Translation.Value = true;
     settings.Width.Value = 1920;
     settings.Action.Value = MaintenanceAction.ReloadConfiguration;
     var reopened = new PluginSettings(new ConfigFile(cfg, false), legacy, warnings.Add);
     Check(reopened.Translation.Value && reopened.Width.Value == 1920, "new settings survive restart, old JSON not reimported");
     Check(reopened.Action.Value == MaintenanceAction.None, "persisted action cannot replay at startup");
+    Check(reopened.Script.Value == ChineseScript.Traditional, "script selection survives configuration reload");
     var edited = File.ReadAllText(cfg).Replace("WindowWidth = 1920", "WindowWidth = 1800");
     File.WriteAllText(cfg, edited);
     reopened.Action.Value = MaintenanceAction.ReloadConfiguration;

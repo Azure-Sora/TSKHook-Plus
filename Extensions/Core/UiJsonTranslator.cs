@@ -11,7 +11,8 @@ public static class UiJsonTranslator
 {
     public static bool TryTranslate(string apiName, string json,
         UiTranslationIndex translations,
-        out string translatedJson, out int replacementCount, out int hashFallbackCount)
+        out string translatedJson, out int replacementCount, out int hashFallbackCount,
+        ChineseScript script = ChineseScript.Original)
     {
         translatedJson = json;
         replacementCount = 0;
@@ -27,7 +28,7 @@ public static class UiJsonTranslator
         {
             Rewrite(apiName, "$", document.RootElement,
                 new Dictionary<string, string>(StringComparer.Ordinal), translations, writer,
-                ref replacementCount, ref hashFallbackCount);
+                ref replacementCount, ref hashFallbackCount, script);
         }
 
         if (replacementCount == 0)
@@ -42,7 +43,7 @@ public static class UiJsonTranslator
     private static void Rewrite(string apiName, string path, JsonElement element,
         IReadOnlyDictionary<string, string> inheritedContext,
         UiTranslationIndex translations,
-        Utf8JsonWriter writer, ref int replacementCount, ref int hashFallbackCount)
+        Utf8JsonWriter writer, ref int replacementCount, ref int hashFallbackCount, ChineseScript script)
     {
         switch (element.ValueKind)
         {
@@ -53,7 +54,7 @@ public static class UiJsonTranslator
                 {
                     writer.WritePropertyName(property.Name);
                     Rewrite(apiName, path + "." + property.Name, property.Value, objectContext,
-                        translations, writer, ref replacementCount, ref hashFallbackCount);
+                        translations, writer, ref replacementCount, ref hashFallbackCount, script);
                 }
                 writer.WriteEndObject();
                 break;
@@ -63,7 +64,7 @@ public static class UiJsonTranslator
                 foreach (var item in element.EnumerateArray())
                 {
                     Rewrite(apiName, path + "[]", item, inheritedContext,
-                        translations, writer, ref replacementCount, ref hashFallbackCount);
+                        translations, writer, ref replacementCount, ref hashFallbackCount, script);
                 }
                 writer.WriteEndArray();
                 break;
@@ -73,7 +74,7 @@ public static class UiJsonTranslator
                 if (!CaptureTextFilter.IsSensitivePath(path) && !TranslationProtection.IsProtectedPath(apiName, path) && TryGetTranslation(apiName, path, source,
                         inheritedContext, translations, out var translation, out var usedHashFallback))
                 {
-                    writer.WriteStringValue(translation);
+                    writer.WriteStringValue(ChineseTextConverter.Convert(translation, script));
                     replacementCount++;
                     if (usedHashFallback)
                     {

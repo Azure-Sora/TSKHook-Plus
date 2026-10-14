@@ -12,7 +12,8 @@ public enum MaintenanceAction
     [Description("重新读取并应用配置")] ReloadConfiguration,
     [Description("重新加载本地译文")] ReloadTranslations,
     [Description("检查并应用翻译更新")] CheckForUpdates,
-    [Description("回退上一版翻译包")] RollbackTranslations
+    [Description("回退上一版文字包")] RollbackTranslations,
+    [Description("回退上一版图片包")] RollbackImages
 }
 
 // Consumed by ConfigurationManager through reflection; no hard assembly dependency.
@@ -35,10 +36,12 @@ public sealed class PluginSettings
     public ConfigEntry<int> Height { get; }
     public ConfigEntry<float> Zoom { get; }
     public ConfigEntry<bool> UiTranslation { get; }
+    public ConfigEntry<ChineseScript> Script { get; }
     public ConfigEntry<bool> Capture { get; }
     public ConfigEntry<int> FlushSeconds { get; }
     public ConfigEntry<bool> AutoUpdate { get; }
     public ConfigEntry<string> ManifestUrl { get; }
+    public ConfigEntry<string> ImageManifestUrl { get; }
     public ConfigEntry<bool> LocalPreview { get; }
     public ConfigEntry<MaintenanceAction> Action { get; }
     public ConfigEntry<string> LastResult { get; }
@@ -54,11 +57,13 @@ public sealed class PluginSettings
         Height = Bind("General", "WindowHeight", 720, "窗口高度", "修改后下一帧调整窗口。", new AcceptableValueRange<int>(240, 4320));
         Zoom = Bind("General", "CharacterZoom", 1f, "立绘缩放", "原立绘缩放功能；下次刷新立绘时应用。", new AcceptableValueRange<float>(0.1f, 10f));
         Translation = Bind("Translation", "Enabled", true, "翻译总开关", "与 F11 使用同一设置；已加载页面可能需要重新打开。", null);
-        UiTranslation = Bind("Translation", "UIEnabled", true, "UI 文本汉化", "总翻译开启时有效；后续文本刷新生效。", null);
+        UiTranslation = Bind("Translation", "UIEnabled", true, "UI 汉化", "总翻译开启时有效；包括文本和已安装的常驻 UI 图片。", null);
+        Script = Bind("Translation", "ChineseScript", ChineseScript.Original, "中文简繁转换", "保持原样、简体或繁体；仅逐字转换译文，不处理词语，不转换图片。已打开页面可能需要重新进入。", null);
         Capture = Bind("Capture", "Enabled", false, "捕获新文本", "结构化捕获并增量保存；可随时开关。", null);
         FlushSeconds = Bind("Capture", "FlushSeconds", 5, "写入间隔（秒）", "批量写入捕获记录；关闭捕获时立即保存。", new AcceptableValueRange<int>(1, 300));
-        AutoUpdate = Bind("Updates", "Enabled", true, "自动更新译文", "启动后及每小时检查；失败保留本地译文。", null);
-        ManifestUrl = Bind("Updates", "ManifestUrl", "https://github.com/Azure-Sora/TSKHook-UITranslations/releases/latest/download/manifest.json", "更新清单地址", "HTTPS 翻译包清单；修改后下次检查使用。", null);
+        AutoUpdate = Bind("Updates", "Enabled", true, "自动更新翻译资源", "启动后及每小时分别检查文字与图片；失败保留本地资源，右下角显示检查及更新进度。", null);
+        ManifestUrl = Bind("Updates", "ManifestUrl", "https://github.com/Azure-Sora/TSKHook-UITranslations/releases/latest/download/manifest.json", "文字更新清单地址", "HTTPS 文字包清单；修改后下次检查使用。", null);
+        ImageManifestUrl = Bind("Updates", "ImageManifestUrl", "https://github.com/Azure-Sora/TSKHook-UITranslations/releases/download/image-channel/image-manifest.json", "图片更新清单地址", "独立图片资源渠道；图片版本与文字版本互不影响。首次发布渠道前检查失败会继续使用本地图片。", null);
         LocalPreview = Bind("Updates", "LocalPreview", false, "本地预览模式", "维护者专用：读取 ui_preview.jsonl 并监听变化；暂停公共包更新。", null);
         Action = Bind("Maintenance", "Action", MaintenanceAction.None, "执行操作", "选择后执行一次并自动恢复无操作；重新读取配置包括原 F1 的窗口与译文重载。", null);
         LastResult = config.Bind("Maintenance", "LastResult", "尚未执行维护操作", new ConfigDescription("最近一次维护操作或更新检查的结果。", null,

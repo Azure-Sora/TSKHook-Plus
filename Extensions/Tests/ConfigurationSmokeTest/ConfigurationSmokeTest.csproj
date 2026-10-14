@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net6.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><LangVersion>latest</LangVersion></PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../Core/TSKHook.Translation.Core.csproj" />
     <PackageReference Include="BepInEx.Core" Version="6.0.0-be.785" />
     <Compile Include="../../PluginSettings.cs" Link="PluginSettings.cs" />
   </ItemGroup>

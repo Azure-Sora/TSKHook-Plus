@@ -5,4 +5,5 @@
     <Nullable>disable</Nullable>
     <Version>1.0.0</Version>
   </PropertyGroup>
+  <ItemGroup><EmbeddedResource Include="Data/chinese-characters.gz" LogicalName="TSKHook.ChineseCharacters" /><EmbeddedResource Include="Data/OpenCC-LICENSE.txt.gz" LogicalName="TSKHook.OpenCC.License.gz" /></ItemGroup>
 </Project>

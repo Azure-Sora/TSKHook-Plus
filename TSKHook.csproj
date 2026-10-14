@@ -1,10 +1,10 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
     <AssemblyName>TSKHook</AssemblyName>
     <Description>TSKHook</Description>
-    <Version>1.4.6</Version>
+    <Version>1.6.0</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -23,6 +23,8 @@
 
   <ItemGroup>
     <Compile Include="*.cs;Extensions/*.cs;Extensions/Core/*.cs" />
+    <EmbeddedResource Include="Extensions/Core/Data/OpenCC-LICENSE.txt.gz" LogicalName="TSKHook.OpenCC.License.gz" />
+    <EmbeddedResource Include="Extensions/Core/Data/chinese-characters.gz" LogicalName="TSKHook.ChineseCharacters" />
   </ItemGroup>
 
   <PropertyGroup>

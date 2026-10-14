@@ -1,10 +1,10 @@
 # TSKHook-Plus
 
-基于 [TSKModding/TSKHook](https://github.com/TSKModding/TSKHook) 的 UI 文本汉化插件。
+基于 [TSKModding/TSKHook](https://github.com/TSKModding/TSKHook) 的文本与常驻 UI 图片汉化插件。
 
 ## 插件与翻译工作台
 
-本仓只维护游戏集成、配置、捕获、字体兼容和翻译包更新。原文、译文、术语、批量工具及独立 Windows 工作台已迁至 [TSKHook-UITranslations](https://github.com/Azure-Sora/TSKHook-UITranslations)。图片导出与替换实验已退出维护范围。
+本仓只维护游戏集成、配置、捕获、字体兼容和翻译包更新。原文、译文、术语、批量工具及独立 Windows 工作台已迁至 [TSKHook-UITranslations](https://github.com/Azure-Sora/TSKHook-UITranslations)。常驻 UI 图片的运行时覆盖也由本插件提供；图片资源和可选调试桥在翻译仓维护。
 
 ## 安装与配置
 
@@ -18,11 +18,13 @@
 
 默认启动后检查翻译包，之后每小时检查一次；失败保留已有译文。维护菜单可手动检查、重载或回退上一份远程翻译包。旧 `plugins/TSKHook/ui_translations.jsonl` 可继续作为离线初始译文。F10 保留剧情缓存清理并重新加载当前 UI 包。
 
+开发版 1.6.0 在右下角使用 Unity 小弹窗显示文字/图片检查、下载进度和结果；文字与图片独立版本、独立更新和回退。图片源及构建工具在翻译仓，插件构建只输出运行时 DLL。F1 → Translation → 中文简繁转换可选择保持原样、简体或繁体；只逐字转换译文，图片字形由图片包决定。详见 [资源更新与简繁配置](Extensions/docs/resource-updates-and-script.md)。本轮暂不发布，新功能实机验收需加载新 DLL 后进行。
+
 维护者启用捕获后，插件将记录写入 `plugins/TSKHook/ui_capture/ui_texts_v2.jsonl`；工作台自动整理与翻译。开启“本地预览模式”后读取工作台生成的 `ui_preview.jsonl` 并暂停公共包更新。新包不会强制刷新所有已打开页面，必要时重新进入页面。
 
 文本捕获仍受游戏按需加载影响；未加载的角色/技能及图片文字不在自动覆盖范围。
 
-1.4.6 支持翻译包中的静态 UI 文字及有界数字/日期模板，在文本启用和渲染时自动替换。遇到未进入网络捕获的 UI，可使用独立的 [UI Inspector 开发工具](Extensions/Tools/UiInspector/README.md) 导出场景 UI 树、查看文本和图片组件并预览精确匹配的翻译。工具还提供本机命令行截图、只读系统目录、点击、滚动与只悬停接口；它是可选开发 DLL，不加入正式插件的单 DLL 发布包。
+1.4.6 支持翻译包中的静态 UI 文字及有界数字/日期模板，在文本启用和渲染时自动替换。遇到未进入网络捕获的 UI，可使用独立的 [UI Inspector 开发工具](https://github.com/Azure-Sora/TSKHook-UITranslations/blob/main/tools/UiInspector/README.md) 导出场景 UI 树、查看文本和图片组件并预览精确匹配的翻译。工具还提供本机命令行截图、只读系统目录、点击、滚动与只悬停接口；它是可选开发 DLL，不加入正式插件的单 DLL 发布包。
 
 ## 开发
 
@@ -47,7 +49,7 @@ Twinkle Star Knights mod for DMM Game Player version
    ![3x speed](./img/3x.gif)
 2. In-game Screenshot
 3. FPS setting
-4. [Translation](Translation.md) (Traditional Chinese only)
+4. [Translation](Translation.md) (configurable Chinese script)
 5. Game window size setting
 6. Picture Book zoom ratio
 

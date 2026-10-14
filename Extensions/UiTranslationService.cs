@@ -80,7 +80,7 @@ internal static class UiTranslationService
             try
             {
                 if (!UiJsonTranslator.TryTranslate(apiName, formattedResponse, snapshot,
-                        out var result, out replacements, out hashFallbacks))
+                        out var result, out replacements, out hashFallbacks, TSKConfig.Settings.Script.Value))
                 {
                     return formattedResponse;
                 }
@@ -136,8 +136,11 @@ internal static class UiTranslationService
         }
 
         Interlocked.Increment(ref renderedTextFallbacks);
+        translation = ConvertText(translation);
         return true;
     }
+
+    internal static string ConvertText(string text) => ChineseTextConverter.Convert(text, TSKConfig.Settings.Script.Value);
 
     internal static void Shutdown()
     {

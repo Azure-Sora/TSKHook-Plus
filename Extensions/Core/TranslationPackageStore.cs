@@ -82,15 +82,15 @@ public sealed class TranslationPackageStore
     }
 
     public async Task<bool> UpdateAsync(HttpClient client, string manifestUrl, string pluginVersion,
-        CancellationToken token = default)
+        CancellationToken token = default, Action<ResourceUpdateProgress> progress = null)
     {
-        if (!Uri.TryCreate(manifestUrl, UriKind.Absolute, out var uri) || uri.Scheme != "https" || !string.IsNullOrEmpty(uri.UserInfo))
-            throw new InvalidDataException("Manifest URL must use HTTPS without credentials.");
+        var uri = PackageDownload.HttpsUri(manifestUrl);
         await gate.WaitAsync(token);
         try
         {
+            progress?.Invoke(new("Checking"));
             using var buffer = new MemoryStream();
-            await DownloadAsync(client, uri, buffer, 64 * 1024, token);
+            await PackageDownload.CopyAsync(client, uri, buffer, 64 * 1024, token);
             var manifest = JsonSerializer.Deserialize<TranslationManifest>(buffer.ToArray(), RuntimeAsset.JsonOptions)
                            ?? throw new InvalidDataException("Empty manifest.");
             manifest.Validate(pluginVersion);
@@ -106,9 +106,11 @@ public sealed class TranslationPackageStore
             try
             {
                 using (var file = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-                    await DownloadAsync(client, new Uri(manifest.DownloadUrl), file, manifest.Size, token);
+                    await PackageDownload.CopyAsync(client, new Uri(manifest.DownloadUrl), file, manifest.Size, token, progress, manifest.Version);
+                progress?.Invoke(new("Verifying", Version: manifest.Version));
                 Verify(temporary, manifest);
                 token.ThrowIfCancellationRequested();
+                progress?.Invoke(new("Installing", Version: manifest.Version));
                 File.Move(temporary, destination, true);
                 WriteState(new PackageState { Current = manifest, Previous = state.Current?.Sha256 == manifest.Sha256 ? state.Previous : state.Current });
                 return true;
@@ -155,21 +157,4 @@ public sealed class TranslationPackageStore
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }
 
-    private static async Task DownloadAsync(HttpClient client, Uri uri, Stream target, long limit, CancellationToken token)
-    {
-        using var response = await client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, token);
-        response.EnsureSuccessStatusCode();
-        if (response.RequestMessage?.RequestUri?.Scheme != "https") throw new InvalidDataException("Insecure redirect refused.");
-        if (response.Content.Headers.ContentLength > limit) throw new InvalidDataException("Download exceeds expected size.");
-        using var source = await response.Content.ReadAsStreamAsync(token);
-        var bytes = new byte[65536];
-        long total = 0;
-        int count;
-        while ((count = await source.ReadAsync(bytes.AsMemory(), token)) > 0)
-        {
-            total += count;
-            if (total > limit) throw new InvalidDataException("Download exceeds expected size.");
-            await target.WriteAsync(bytes.AsMemory(0, count), token);
-        }
-    }
 }

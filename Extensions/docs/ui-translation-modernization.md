@@ -10,6 +10,8 @@
 
 放弃 Sprite/Spine 图片提取与替换方向，不合入实验分支，不制作图片翻译工具。既有 Git 历史保留用于追溯，不在本次工作中重写历史。
 
+2026-10-14 后续范围调整：用户重新提出通过调试桥导出图片、用 imagegen 汉化、再在游戏中替换，先试主页通知／任务／礼物三个图标。因此允许在独立 UI Inspector 中进行图片导出和一次性替换预览；上述“不制作图片翻译工具”仅代表原现代化轮次的范围，不再禁止这次明确授权的实验。随后用户确认试做效果并授权常见页面的常驻 UI 图片汉化，正式插件 1.5.2 已加入持久 Sprite 与 Spine 标题覆盖。限时封面与物品图仍排除，具体覆盖、资源守卫与切页实机验收见 [常驻 UI 图片汉化](ui-image-localization.md)。调试桥操作见 [UI Inspector](https://github.com/Azure-Sora/TSKHook-UITranslations/blob/main/tools/UiInspector/README.md)。
+
 ## 两仓归属
 
 | 内容 | TSKHook-Plus | TSKHook-UITranslations |

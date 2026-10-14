@@ -17,6 +17,7 @@ internal static class UiRuntimeController
     private static readonly ConcurrentQueue<Action> MainThread = new();
     private static readonly string Root = Path.Combine(Paths.PluginPath, "TSKHook");
     private static readonly TranslationPackageStore Packages = new(Path.Combine(Root, "packages"));
+    private static readonly ImagePackageStore Images = new(Path.Combine(Root, "image-packages"));
     private static DateTime nextUpdate = DateTime.UtcNow.AddSeconds(15);
     private static DateTime nextPreview;
     private static DateTime previewStamp;
@@ -35,6 +36,9 @@ internal static class UiRuntimeController
         Client.DefaultRequestHeaders.UserAgent.ParseAdd("TSKHook/" + MyPluginInfo.PLUGIN_VERSION);
         UiTextCaptureService.Initialize();
         UiTranslationService.Initialize();
+        try { Images.SeedLocalAsync(Path.Combine(Root, "ui_images")).GetAwaiter().GetResult(); }
+        catch (Exception e) { Plugin.Global.Log.LogWarning("[UI Images] Local seed skipped: " + e.Message); }
+        LoadActiveImages();
         try { Packages.SeedLocalAsync(Path.Combine(Root, "ui_translations.jsonl")).GetAwaiter().GetResult(); }
         catch (Exception e) { Plugin.Global.Log.LogWarning("[UI Translation] Local package seed skipped: " + e.Message); }
         LoadActiveTranslations();
@@ -46,6 +50,7 @@ internal static class UiRuntimeController
     {
         if (Volatile.Read(ref stopped) != 0) return false;
         while (MainThread.TryDequeue(out var callback)) callback();
+        UiUpdatePopup.Update();
         if (TSKConfig.ConsumeChange())
         {
             try
@@ -79,9 +84,10 @@ internal static class UiRuntimeController
                         LoadActiveTranslations();
                         Report("配置已重新读取并应用。");
                         break;
-                    case MaintenanceAction.ReloadTranslations: LoadActiveTranslations(); break;
+                    case MaintenanceAction.ReloadTranslations: LoadActiveTranslations(); LoadActiveImages(); break;
                     case MaintenanceAction.CheckForUpdates: StartUpdate(false); break;
                     case MaintenanceAction.RollbackTranslations: StartUpdate(true); break;
+                    case MaintenanceAction.RollbackImages: StartUpdate(true, true); break;
                 }
             }
             catch (Exception e) { Report("操作失败：" + e.Message); }
@@ -98,6 +104,7 @@ internal static class UiRuntimeController
             var stamp = File.GetLastWriteTimeUtc(Path.Combine(Root, "ui_preview.jsonl"));
             if (stamp != previewStamp) { previewStamp = stamp; LoadActiveTranslations(); }
         }
+        UiImageTranslationService.Update();
         return IsManagerVisible();
     }
 
@@ -117,30 +124,92 @@ internal static class UiRuntimeController
         catch (Exception e) { Plugin.Global.Log.LogWarning("[UI Translation] Active package unavailable; previous index retained: " + e.Message); }
     }
 
-    private static void StartUpdate(bool rollback)
+    private static void LoadActiveImages()
+    {
+        try
+        {
+            var state = Images.ReadState();
+            if (state.Current != null) ImagePackageStore.VerifyDirectory(Images.PackagePath(state.Current), state.Current);
+            UiImageTranslationService.Reload(state.Current != null ? Images.PackagePath(state.Current) : Path.Combine(Root, "ui_images"));
+        }
+        catch (Exception e) { Plugin.Global.Log.LogWarning("[UI Images] Active package unavailable; previous images retained: " + e.Message); }
+    }
+
+    private static void StartUpdate(bool rollback, bool imagesOnly = false)
     {
         if (TSKConfig.Settings.LocalPreview.Value) { Report("本地预览模式已暂停公共翻译包更新；请先关闭预览模式。"); return; }
         if (Interlocked.CompareExchange(ref updateRunning, 1, 0) != 0) return;
         var url = TSKConfig.Settings.ManifestUrl.Value.Trim();
+        var imageUrl = TSKConfig.Settings.ImageManifestUrl.Value.Trim();
+        UiUpdatePopup.Show(rollback ? (imagesOnly ? "正在回退图片资源…" : "正在回退文字资源…") : "正在检查翻译资源更新…");
         _ = Task.Run(async () =>
         {
+            var results = new System.Collections.Generic.List<string>();
+            async Task RunChannel(string channel, Func<Task<bool>> update, Action reload)
+            {
+                try
+                {
+                    var changed = await update();
+                    results.Add(channel + (changed ? "已更新" : "已是当前版本"));
+                    if (changed && !Lifetime.IsCancellationRequested) MainThread.Enqueue(reload);
+                }
+                catch (OperationCanceledException) when (Lifetime.IsCancellationRequested) { throw; }
+                catch (Exception e)
+                {
+                    results.Add(channel + "更新失败，保留本地资源");
+                    if (!Lifetime.IsCancellationRequested) MainThread.Enqueue(() => Report(channel + "更新未完成：" + e.Message));
+                }
+            }
+            Action<ResourceUpdateProgress> Progress(string channel) => value =>
+            {
+                if (Lifetime.IsCancellationRequested) return;
+                MainThread.Enqueue(() =>
+                {
+                    var text = value.Stage switch
+                    {
+                        "Downloading" => $"正在下载{channel} {value.Version}\n{value.Bytes / 1024:N0} / {value.Total / 1024:N0} KB  ({value.Bytes * 100 / Math.Max(1, value.Total)}%)",
+                        "Verifying" => $"正在校验{channel} {value.Version}…",
+                        "Installing" => $"正在应用{channel} {value.Version}…",
+                        _ => $"正在检查{channel}更新…"
+                    };
+                    UiUpdatePopup.Show(text, value.Stage == "Downloading" ? (float)value.Bytes / Math.Max(1, value.Total) : -1);
+                });
+            };
             try
             {
-                var changed = true;
-                if (rollback) await Packages.RollbackAsync(Lifetime.Token);
-                else changed = await Packages.UpdateAsync(Client, url, MyPluginInfo.PLUGIN_VERSION, Lifetime.Token);
+                if (rollback)
+                {
+                    if (imagesOnly) await Images.RollbackAsync(Lifetime.Token);
+                    else await Packages.RollbackAsync(Lifetime.Token);
+                    results.Add(imagesOnly ? "图片资源已回退" : "文字资源已回退");
+                    if (!Lifetime.IsCancellationRequested) MainThread.Enqueue(imagesOnly ? LoadActiveImages : LoadActiveTranslations);
+                }
+                else
+                {
+                    await RunChannel("文字资源", () => Packages.UpdateAsync(Client, url, MyPluginInfo.PLUGIN_VERSION, Lifetime.Token, Progress("文字资源")), LoadActiveTranslations);
+                    await RunChannel("图片资源", () => Images.UpdateAsync(Client, imageUrl, MyPluginInfo.PLUGIN_VERSION, Lifetime.Token, Progress("图片资源")), LoadActiveImages);
+                }
                 if (!Lifetime.IsCancellationRequested) MainThread.Enqueue(() =>
                 {
-                    LoadActiveTranslations();
-                    Report(changed ? "翻译包已切换；已打开页面可能需要重新进入。" : "翻译包已是当前版本。");
+                    var message = string.Join("\n", results);
+                    Report(message);
+                    UiUpdatePopup.Show(message, complete: true);
                 });
             }
             catch (OperationCanceledException) when (Lifetime.IsCancellationRequested) { }
             catch (Exception e)
             {
-                if (!Lifetime.IsCancellationRequested) MainThread.Enqueue(() => Report("翻译包更新未完成，保留现有译文：" + e.Message));
+                if (!Lifetime.IsCancellationRequested) MainThread.Enqueue(() =>
+                {
+                    Report("资源切换未完成：" + e.Message);
+                    UiUpdatePopup.Show("资源切换未完成，保留现有资源", complete: true);
+                });
             }
-            finally { Interlocked.Exchange(ref updateRunning, 0); }
+            finally
+            {
+                if (!Lifetime.IsCancellationRequested) MainThread.Enqueue(() => Interlocked.Exchange(ref updateRunning, 0));
+                else Interlocked.Exchange(ref updateRunning, 0);
+            }
         });
     }
 
@@ -173,6 +242,8 @@ internal static class UiRuntimeController
         if (Interlocked.Exchange(ref stopped, 1) != 0) return;
         Lifetime.Cancel();
         UiTextCaptureService.Shutdown();
+        UiImageTranslationService.Shutdown();
+        UiUpdatePopup.Shutdown();
         UiTranslationService.Shutdown();
     }
 }

@@ -12,7 +12,10 @@ var tests = 0;
 try
 {
     Configure("1", "译文一");
-    Check(await store.UpdateAsync(client, "https://fixture/manifest", "1.4.0"), "first install");
+    var progress = new List<ResourceUpdateProgress>();
+    Check(await store.UpdateAsync(client, "https://fixture/manifest", "1.4.0", progress: progress.Add), "first install");
+    Check(progress.First().Stage == "Checking" && progress.Any(x => x.Stage == "Downloading" && x.Bytes == x.Total) &&
+        progress.Any(x => x.Stage == "Verifying") && progress.Last().Stage == "Installing", "real text download progress");
     Check(store.ReadState().Current.Version == "1", "first version pointer");
     Check(!await store.UpdateAsync(client, "https://fixture/manifest", "1.4.0"), "same package no-op");
     Configure("2", "译文二");
