@@ -9,6 +9,9 @@ public sealed class UiImageManifest
     public string Version { get; set; }
     public List<UiSpriteRule> Sprites { get; set; } = new();
     public List<UiSpineRule> Spine { get; set; } = new();
+    public bool HasSameRules(UiImageManifest other) => other != null &&
+        JsonSerializer.Serialize(Sprites) == JsonSerializer.Serialize(other.Sprites) &&
+        JsonSerializer.Serialize(Spine) == JsonSerializer.Serialize(other.Spine);
     public static UiImageManifest Read(string directory)
     {
         var manifest = JsonSerializer.Deserialize<UiImageManifest>(File.ReadAllText(Path.Combine(directory, "manifest.json")),

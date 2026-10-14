@@ -26,6 +26,12 @@ try {
  var path=Path.Combine(temporary,"manifest.json");
  void Write()=>File.WriteAllText(path,JsonSerializer.Serialize(manifest));
  Write(); Check(UiImageManifest.Read(temporary).Spine.Count==16,"Package roundtrip failed");
+ var equivalent=UiImageManifest.Read(temporary);equivalent.Version="another-version";
+ Check(manifest.HasSameRules(equivalent),"Version-only changes should retain live covers");
+ equivalent.Sprites[0].Sha256=new string('0',64);
+ Check(!manifest.HasSameRules(equivalent),"Changed image checksum must invalidate covers");
+ equivalent=UiImageManifest.Read(temporary);equivalent.Spine[0].Regions[0].OffsetX++;
+ Check(!manifest.HasSameRules(equivalent),"Changed Spine geometry must invalidate covers");
  manifest.Sprites[0].Width++; Write(); Reject(()=>UiImageManifest.Read(temporary),"Dimension mismatch accepted"); manifest.Sprites[0].Width--;
  manifest.Sprites.Add(manifest.Sprites[0]);Write();Reject(()=>UiImageManifest.Read(temporary),"Duplicate rule accepted");manifest.Sprites.RemoveAt(manifest.Sprites.Count-1);
  manifest.Spine[0].Regions[0].Degrees=45;Write();Reject(()=>UiImageManifest.Read(temporary),"Unsupported Spine rotation accepted");manifest.Spine[0].Regions[0].Degrees=0;

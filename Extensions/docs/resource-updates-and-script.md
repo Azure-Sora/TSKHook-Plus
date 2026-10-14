@@ -1,6 +1,6 @@
 # 翻译资源更新与简繁转换（开发版 1.6.0）
 
-本轮整理、功能及本地验证均不发布版本。插件仍输出单个 `TSKHook.dll`；正式发行 DLL 保持原样，发布前再运行 Stage-Release。
+本轮整理、功能及本地验证均不发布版本。插件仍输出单个 `TSKHook.dll`；正式发行 DLL 保持原样，发布前再运行 Stage-Release。用户随后授权安装及重启，开发版已完成限定实机验收，详见 verification.md。
 
 ## 仓库边界
 
@@ -18,7 +18,7 @@
 
 图片发布与工作台发布必须使用 `latest=false`，保留旧插件的文字更新入口；文字继续由现有工作台 ReleasePublisher 发布。图片清单的下载 URL 固定到不可变的 `images-<版本>` 附件；image-channel 仅保存当前图片清单。不需要文字、图片和插件三个版本号相同。
 
-图片 ZIP 只允许扁平 manifest.json 与 PNG 文件，限制数量、解压大小及路径。下载校验大小与 SHA-256，解压后再校验每张图片、尺寸、源指纹与内外版本一致性。校验通过才原子切换 active.json；失败不改变当前指针。首次远程更新前保留已有离线图片包，支持单独回退。加载新图片会恢复旧覆盖并释放自有纹理，再按原有源指纹规则重新应用。
+图片 ZIP 只允许扁平 manifest.json 与 PNG 文件，限制数量、解压大小及路径。下载校验大小与 SHA-256，解压后再校验每张图片、尺寸、源指纹与内外版本一致性。校验通过才原子切换 active.json；失败不改变当前指针。首次远程更新前保留已有离线图片包，支持单独回退。规则有变化时恢复旧覆盖并释放自有纹理，再按原有源指纹规则重新应用；规则相同、仅版本/目录改变时保留已有覆盖，避免导航闪回原图。
 
 启动 15 秒后及每小时分别检查文字、图片。Maintenance 手动检查两类资源，回退分别提供“回退上一版文字包”和“回退上一版图片包”。本地预览模式暂停公共资源更新。图片渠道尚未首次发布时，检查会显示失败并保留离线图片，文字渠道仍能独立成功。
 
@@ -42,4 +42,4 @@ dotnet run --project Extensions/Tests/ResourceUpdateTest -c Release -- E:\Codes\
 dotnet run --project Extensions/Tests/UiImagePackageTest -c Release -- E:\Codes\TSKHook-UITranslations\translations\images\ui_images
 ```
 
-这些检查不代表新功能的游戏内显示验收。真实游戏必须重启加载新 DLL 后核对右下角弹窗、字体、下载过程、简繁切换与页面跳转。旧图片翻译的实机验收见 [图片汉化记录](ui-image-localization.md)。
+本轮已重启真实游戏并核对右下角弹窗、实际本机 HTTPS 下载过程、三种简繁模式的菜单和弹窗区域下的页面点击；范围、限制及恢复记录见 [验证记录](verification.md)。旧图片翻译的实机验收见 [图片汉化记录](ui-image-localization.md)。

@@ -33,12 +33,17 @@ internal static class UiImageTranslationService
             var candidate = UiImageManifest.Read(directory);
             var candidateSprites = candidate.Sprites.ToDictionary(x => x.Sprite, StringComparer.Ordinal);
             var candidateSpine = candidate.Spine.ToDictionary(x => x.Asset, StringComparer.Ordinal);
-            Shutdown();
+            // Changing only the package/version/path does not invalidate identical image overrides.
+            // Avoid restoring every visible image while the bounded GPU scan rebuilds the same data.
+            var sameRules = candidate.HasSameRules(manifest);
+            if (!sameRules) Shutdown();
             Root = directory;
             manifest = candidate;
             spriteRules = candidateSprites;
             spineRules = candidateSpine;
-            reported.Clear(); enabled = false; nextScan = DateTime.MinValue;
+            reported.Clear();
+            if (!sameRules) enabled = false;
+            nextScan = DateTime.MinValue;
             Plugin.Global.Log.LogInfo($"[UI Images] Loaded {manifest.Version}: {spriteRules.Count} sprites, {spineRules.Count} Spine cards.");
             return true;
         }

@@ -72,3 +72,5 @@ dotnet run --project Extensions/Tests/UiImagePackageTest -c Release -- E:\Codes\
 ### 本轮仓库整理（2026-10-14）
 
 资源与 UI Inspector 已迁入翻译仓，插件保留源匹配及运行时覆盖。开发版 1.6.0 增加独立图片包自动更新与右下角进度，见 [资源更新说明](resource-updates-and-script.md)。上述 1.5.2 实机记录是既有图片功能证据，不代表 1.6.0 新功能已经验收。此次没有公开发布。
+
+随后用户授权重启，1.6.0 新功能的限定实机验收已完成；同规则回退与热更新保持原覆盖，详情见 [验证记录](verification.md)。本机下载 fixture 不代表公开图片渠道已经发布。
