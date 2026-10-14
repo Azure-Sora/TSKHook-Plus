@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace TSKHook;
 
@@ -25,7 +26,9 @@ public static class RuntimeAsset
             if (row?.SchemaVersion != 1 || string.IsNullOrWhiteSpace(row.Key) ||
                 !IsSha256(row.SourceHash) || string.IsNullOrWhiteSpace(row.Translation))
                 throw new InvalidDataException($"Invalid translation fields at line {lineNumber}.");
-            if (!rows.TryAdd(row.Key, new UiRuntimeTranslation(row.SourceHash, row.Translation)))
+            if (row.SourceTemplate != null && (!row.RenderedOnly || UiJsonTranslator.Sha256(row.SourceTemplate) != row.SourceHash))
+                throw new InvalidDataException($"Invalid rendered template at line {lineNumber}.");
+            if (!rows.TryAdd(row.Key, new UiRuntimeTranslation(row.SourceHash, row.Translation, row.RenderedOnly, row.SourceTemplate)))
                 throw new InvalidDataException($"Duplicate translation key at line {lineNumber}.");
         }
         if (rows.Count == 0) throw new InvalidDataException("Translation package is empty.");
@@ -42,4 +45,8 @@ public sealed class RuntimeRow
     public string Key { get; set; }
     public string SourceHash { get; set; }
     public string Translation { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool RenderedOnly { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string SourceTemplate { get; set; }
 }

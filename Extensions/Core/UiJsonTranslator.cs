@@ -116,4 +116,5 @@ public static class UiJsonTranslator
     }
 }
 
-public sealed record UiRuntimeTranslation(string SourceHash, string Translation);
+public sealed record UiRuntimeTranslation(string SourceHash, string Translation,
+    bool RenderedOnly = false, string SourceTemplate = null);

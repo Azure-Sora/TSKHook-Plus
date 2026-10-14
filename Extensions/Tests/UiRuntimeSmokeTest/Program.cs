@@ -133,11 +133,12 @@ foreach (var variant in variantCases)
         variant.Context, legacy, out var descriptor) && descriptor.Key == firstKey, "legacy variant migration matches runtime: " + variant.Api, failures);
 }
 
+var staticUiAssertions = StaticUiRuntimeTests.Run(failures);
 if (failures.Count == 0)
 {
     RunStructuredLookupBenchmark();
     RunRenderedLookupBenchmark();
-    Console.WriteLine("PASS: 27 runtime translation assertions");
+    Console.WriteLine($"PASS: 27 legacy and {staticUiAssertions} static UI runtime translation assertions");
     return 0;
 }
 

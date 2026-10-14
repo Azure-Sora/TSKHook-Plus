@@ -102,6 +102,16 @@ internal static class UiFontFallbackPatch
         Apply(__instance);
     }
 
+    // SetText overloads and native field writes can bypass set_text. Translate the final value
+    // before TMP builds the mesh; no scene scans or permanent per-frame polling are needed.
+    [HarmonyPrefix]
+    [HarmonyPatch(typeof(TextMeshProUGUI), "OnPreRenderCanvas")]
+    private static void BeforeUguiRender(TextMeshProUGUI __instance)
+    {
+        TranslateCurrentText(__instance);
+        Apply(__instance);
+    }
+
     [HarmonyPostfix]
     [HarmonyPatch(typeof(TextMeshPro), "OnEnable")]
     private static void MeshEnabled(TextMeshPro __instance)

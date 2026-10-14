@@ -11,6 +11,6 @@ public static class UiRenderedTextTranslator
             return false;
         }
 
-        return translations.TryGetUniqueBySourceHash(UiJsonTranslator.Sha256(source), out translation);
+        return translations.TryGetRenderedText(source, out translation);
     }
 }
