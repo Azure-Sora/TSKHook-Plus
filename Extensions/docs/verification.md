@@ -127,3 +127,10 @@
 结束时保留验收通过的开发版 DLL，游戏回到主页。配置文件和文字包状态逐字节恢复备份；图片活动状态回到原离线资源的 seed，移除测试下载的缓存与 fixture URL 状态。Capture 原配置保留，正常采集新增文本不删除。停止 localhost:27443 服务，删除临时证书（LocalMachine 和 CurrentUser 均确认不存在）及私钥。没有购买、招募、领奖或战斗，没有推送、标签或公开发布。
 
 证据在忽略的 `.local/runtime-160/`：acceptance-summary.json、startup-notices.json、startup-10/33/36.png、菜单各模式截图与文本、image-rollback-result.json、final-hot-update-records.json、final-restored-home.json/png、final-runtime.log 及 trust-cleanup-status.json。
+
+
+## 2026-10-14 v1.6.0 发布准备
+
+用户随后授权推送与公开发布。Stage-Release 按已提交源 648e6a1 重建并暂存单 DLL：154,624 字节，SHA-256 95a40b03d1077a7259850448d3f834ee4bb94b3af9d4b7e02f9b7de2eafd472d。与实机 DLL 48a56b... 相比，567 个方法签名/IL/异常区域及内嵌资源逐项相同；差异是构建元数据，未改变行为。
+
+发布版本为插件 v1.6.0、文字 translations-2026.10.14.2、图片 images-2026.10.14.3；图片与 image-channel 使用 latest=false，文字继续独占其仓库的 latest。公开下载校验、分支与标签及 CI 证据另存本机 .local/release-160，本节的发布准备本身不代表公开上传已经成功。
