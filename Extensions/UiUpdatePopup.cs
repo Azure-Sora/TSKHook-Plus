@@ -15,6 +15,9 @@ internal static class UiUpdatePopup
     private static float progress;
     private static DateTime expires;
     private static bool failed;
+    private static string appliedMessage;
+    private static ChineseScript appliedScript;
+    private static float appliedProgress = float.NaN;
 
     internal static void Show(string text, float fraction = -1, bool complete = false)
     {
@@ -38,10 +41,19 @@ internal static class UiUpdatePopup
             // The existing Chinese TMP bundle is reused; retry naturally once the font is ready.
             if (Patch.TMPTranslateFont == null) return;
             if (root == null) Create();
-            root.SetActive(true);
-            label.text = ChineseTextConverter.Convert(message, TSKConfig.Settings.Script.Value);
-            fill.gameObject.SetActive(progress >= 0);
-            fill.anchorMax = new Vector2(Mathf.Clamp01(progress), 1);
+            if (!root.activeSelf) root.SetActive(true);
+            var script = TSKConfig.Settings.Script.Value;
+            if (message != appliedMessage || script != appliedScript)
+            {
+                label.text = ChineseTextConverter.Convert(message,script);
+                appliedMessage = message; appliedScript = script;
+            }
+            if (progress != appliedProgress)
+            {
+                fill.gameObject.SetActive(progress >= 0);
+                fill.anchorMax = new Vector2(Mathf.Clamp01(progress), 1);
+                appliedProgress = progress;
+            }
         }
         catch (Exception e)
         {
@@ -53,6 +65,7 @@ internal static class UiUpdatePopup
 
     private static void Create()
     {
+        appliedMessage = null; appliedProgress = float.NaN;
         root = new GameObject("TSKHook.UpdateNotice");
         UObject.DontDestroyOnLoad(root);
         var canvas = root.AddComponent<Canvas>();

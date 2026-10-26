@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 using System.Threading;
@@ -14,14 +13,15 @@ internal static class UiTranslationService
     private static readonly object ReloadLock = new();
     private static readonly ConcurrentDictionary<string, byte> LoggedApis = new(StringComparer.Ordinal);
     private static UiTranslationIndex translations = UiTranslationIndex.Empty;
+    private static RenderedTextCache rendered = new(UiTranslationIndex.Empty);
+    private static int renderedRevision;
+    internal static int RenderedRevision => Volatile.Read(ref renderedRevision);
     private static string assetPath;
     private static long translatedResponses;
     private static long translatedTexts;
     private static long inspectedResponses;
-    private static long totalTransformMilliseconds;
     private static long renderedTextFallbacks;
     private static int errorCount;
-    private static int slowLogCount;
     private static int shutdownLogged;
 
     internal static void Initialize()
@@ -38,10 +38,7 @@ internal static class UiTranslationService
             try
             {
                 var index = RuntimeAsset.Load(candidate);
-                Volatile.Write(ref translations, index);
-                assetPath = candidate;
-                LoggedApis.Clear();
-                Plugin.Global.Log.LogInfo($"[UI Translation] Loaded {index.ExactCount} entries; ambiguous hashes excluded: {index.AmbiguousSourceHashCount}.");
+                Install(index,candidate);
                 return true;
             }
             catch (Exception exception)
@@ -50,6 +47,16 @@ internal static class UiTranslationService
                 return false;
             }
         }
+    }
+
+    internal static void Install(UiTranslationIndex index, string path)
+    {
+        Volatile.Write(ref translations,index);
+        Volatile.Write(ref rendered,new RenderedTextCache(index));
+        Interlocked.Increment(ref renderedRevision);
+        assetPath = path;
+        LoggedApis.Clear();
+        Plugin.Global.Log.LogInfo($"[UI Translation] Loaded {index.ExactCount} entries; ambiguous hashes excluded: {index.AmbiguousSourceHashCount}.");
     }
 
     internal static string TranslateResponse(string apiName, string formattedResponse)
@@ -74,7 +81,6 @@ internal static class UiTranslationService
 
         try
         {
-            var stopwatch = Stopwatch.StartNew();
             var replacements = 0;
             var hashFallbacks = 0;
             try
@@ -97,16 +103,7 @@ internal static class UiTranslationService
             }
             finally
             {
-                stopwatch.Stop();
                 Interlocked.Increment(ref inspectedResponses);
-                Interlocked.Add(ref totalTransformMilliseconds, stopwatch.ElapsedMilliseconds);
-                if (stopwatch.ElapsedMilliseconds >= 250 && Interlocked.Increment(ref slowLogCount) <= 50)
-                {
-                    Plugin.Global.Log.LogInfo(
-                        $"[UI Translation Perf] {apiName}: {formattedResponse.Length} chars, " +
-                        $"{replacements} replacements ({hashFallbacks} hash fallbacks), " +
-                        $"{stopwatch.ElapsedMilliseconds} ms.");
-                }
             }
         }
         catch (JsonException exception)
@@ -129,14 +126,13 @@ internal static class UiTranslationService
             return false;
         }
 
-        var snapshot = Volatile.Read(ref translations);
-        if (!UiRenderedTextTranslator.TryTranslate(source, snapshot, out translation))
+        var found = Volatile.Read(ref rendered).TryTranslate(source,TSKConfig.Settings.Script.Value,out translation,out _);
+        if (!found)
         {
             return false;
         }
 
         Interlocked.Increment(ref renderedTextFallbacks);
-        translation = ConvertText(translation);
         return true;
     }
 
@@ -153,7 +149,6 @@ internal static class UiTranslationService
             $"[UI Translation] Stopped. Translated responses: {Interlocked.Read(ref translatedResponses)}, " +
             $"text values: {Interlocked.Read(ref translatedTexts)}, " +
             $"inspected responses: {Interlocked.Read(ref inspectedResponses)}, " +
-            $"transform time: {Interlocked.Read(ref totalTransformMilliseconds)} ms, " +
             $"rendered text fallbacks: {Interlocked.Read(ref renderedTextFallbacks)}, " +
             $"TMP fonts configured: {UiFontFallbackPatch.ProcessedFontCount}, " +
             $"unreadable atlas insertions skipped: {UiFontFallbackPatch.SkippedUnreadableAtlasInsertions}.");

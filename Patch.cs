@@ -22,6 +22,8 @@ public class Patch
         Harmony.CreateAndPatchAll(typeof(Patch));
         Harmony.CreateAndPatchAll(typeof(NetworkCapturePatch));
         Harmony.CreateAndPatchAll(typeof(UiFontFallbackPatch));
+        Harmony.CreateAndPatchAll(typeof(UiImageEventPatch));
+        Harmony.CreateAndPatchAll(typeof(UiRuntimeActivity));
     }
 
     internal static void EnsureTranslationFontLoaded()

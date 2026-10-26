@@ -14,6 +14,53 @@ internal static class UiFontFallbackPatch
     private static int errorCount;
     private static int atlasGuardErrorCount;
     private static long skippedUnreadableAtlasInsertions;
+    private static readonly Dictionary<int, ComponentText> Texts = new();
+    private static readonly Queue<int> TextOrder = new();
+    private static readonly BoundedWorkQueue<int, TMP_Text> Refresh = new(4096);
+    private static readonly Func<string,string> Translate = source => UiTranslationService.TryTranslateRenderedText(source,out var value) ? value : null;
+    private static (int Revision, bool Enabled, ChineseScript Script) lastSettings;
+    [ThreadStatic] private static bool writing;
+    private sealed record ComponentText(TMP_Text Text, RenderedTextState State);
+    private static bool TextEnabled => TSKConfig.TranslationEnabled && TSKConfig.UiTranslationEnabled;
+
+    private static RenderedTextState State(TMP_Text text)
+    {
+        var id = text.GetInstanceID();
+        if (Texts.TryGetValue(id,out var value) && value.Text == text) return value.State;
+        if (!Texts.ContainsKey(id))
+        {
+            if (Texts.Count >= 4096)
+            {
+                var oldest = TextOrder.Dequeue();
+                if (Texts.Remove(oldest,out var evicted) && evicted.Text != null)
+                {
+                    // Do not leave an evicted component displaying a translation whose original we can no longer restore.
+                    if (evicted.State.Resolve(evicted.Text.text,UiTranslationService.RenderedRevision,false,TSKConfig.Settings.Script.Value,Translate,out var original))
+                    {
+                        var previous = writing; writing = true;
+                        try { evicted.Text.text = original; } finally { writing = previous; }
+                    }
+                }
+            }
+            TextOrder.Enqueue(id);
+        }
+        var state = new RenderedTextState();
+        Texts[id] = new(text,state);
+        return state;
+    }
+
+    internal static void Update()
+    {
+        var settings = (UiTranslationService.RenderedRevision,TextEnabled,TSKConfig.Settings.Script.Value);
+        if (lastSettings != settings)
+        {
+            lastSettings = settings;
+            foreach (var pair in Texts) if (pair.Value.Text != null) Refresh.Enqueue(pair.Key,pair.Value.Text);
+        }
+        var deadline = System.Diagnostics.Stopwatch.GetTimestamp() + (long)(System.Diagnostics.Stopwatch.Frequency * .0004);
+        for (var i = 0; i < 32 && System.Diagnostics.Stopwatch.GetTimestamp() < deadline && Refresh.TryDequeue(out var text); i++)
+            if (text != null) TranslateCurrentText(text);
+    }
 
     internal static int ProcessedFontCount
     {
@@ -86,12 +133,14 @@ internal static class UiFontFallbackPatch
 
     [HarmonyPrefix]
     [HarmonyPatch(typeof(TMP_Text), "set_text")]
-    private static void TranslateText(ref string value)
+    private static void TranslateText(TMP_Text __instance, ref string value)
     {
-        if (UiTranslationService.TryTranslateRenderedText(value, out var translation))
+        if (writing || __instance == null || value?.Length > 4096) return;
+        try
         {
-            value = translation;
+            if (State(__instance).Resolve(value,UiTranslationService.RenderedRevision,TextEnabled,TSKConfig.Settings.Script.Value,Translate,out var translated)) value = translated;
         }
+        catch (Exception e) { if (Interlocked.Increment(ref errorCount) <= 5) Plugin.Global.Log.LogWarning("[UI Translation] Text fallback: " + e.Message); }
     }
 
     [HarmonyPostfix]
@@ -122,10 +171,17 @@ internal static class UiFontFallbackPatch
 
     private static void TranslateCurrentText(TMP_Text text)
     {
-        if (text != null && UiTranslationService.TryTranslateRenderedText(text.text, out var translation))
+        if (writing || text == null) return;
+        try
         {
-            text.text = translation;
+            var current = text.text;
+            if (current?.Length > 4096) return;
+            if (!State(text).Resolve(current,UiTranslationService.RenderedRevision,TextEnabled,TSKConfig.Settings.Script.Value,Translate,out var value)) return;
+            writing = true;
+            text.text = value;
         }
+        catch (Exception e) { if (Interlocked.Increment(ref errorCount) <= 5) Plugin.Global.Log.LogWarning("[UI Translation] Text refresh: " + e.Message); }
+        finally { writing = false; }
     }
 
     private static void Apply(TMP_Text text)

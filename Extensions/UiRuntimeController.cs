@@ -28,6 +28,14 @@ internal static class UiRuntimeController
     private static object manager;
     private static PropertyInfo managerVisible;
     private static bool managerSearched;
+    private static bool runtimeReady;
+    private static int textRequest, imageRequest;
+    private static PreparedText pendingText;
+    private static PreparedImages pendingImages;
+    private static Action pendingProgress;
+    private static readonly SemaphoreSlim PreparationGate = new(1,1);
+    private sealed record PreparedText(int Request, string Path, UiTranslationIndex Index);
+    private sealed record PreparedImages(int Request, PreparedImagePackage Package);
 
     internal static void Initialize()
     {
@@ -43,13 +51,24 @@ internal static class UiRuntimeController
         catch (Exception e) { Plugin.Global.Log.LogWarning("[UI Translation] Local package seed skipped: " + e.Message); }
         LoadActiveTranslations();
         Patch.EnsureTranslationFontLoaded();
+        runtimeReady = true;
     }
 
     // All configuration application and Unity-facing operations happen here, on the game thread.
     internal static bool Update()
     {
         if (Volatile.Read(ref stopped) != 0) return false;
-        while (MainThread.TryDequeue(out var callback)) callback();
+        var deadline = System.Diagnostics.Stopwatch.GetTimestamp() + System.Diagnostics.Stopwatch.Frequency/2000;
+        for (var i = 0; i < 8 && System.Diagnostics.Stopwatch.GetTimestamp() < deadline && MainThread.TryDequeue(out var callback); i++) callback();
+        Interlocked.Exchange(ref pendingProgress,null)?.Invoke();
+        // Preparation is complete before publication; do not change resources during a battle.
+        if (!UiRuntimeActivity.InBattle)
+        {
+            var text = Interlocked.Exchange(ref pendingText,null);
+            if (text != null && text.Request == Volatile.Read(ref textRequest)) UiTranslationService.Install(text.Index,text.Path);
+            var image = Interlocked.Exchange(ref pendingImages,null);
+            if (image != null && image.Request == Volatile.Read(ref imageRequest)) UiImageTranslationService.Install(image.Package);
+        }
         UiUpdatePopup.Update();
         if (TSKConfig.ConsumeChange())
         {
@@ -105,35 +124,66 @@ internal static class UiRuntimeController
             if (stamp != previewStamp) { previewStamp = stamp; LoadActiveTranslations(); }
         }
         UiImageTranslationService.Update();
+        UiFontFallbackPatch.Update();
         return IsManagerVisible();
     }
 
     internal static void LoadActiveTranslations()
     {
-        try
+        var request = Interlocked.Increment(ref textRequest);
+        var usePreview = TSKConfig.Settings.LocalPreview.Value;
+        void Prepare()
         {
-            if (TSKConfig.Settings.LocalPreview.Value)
-                UiTranslationService.Reload(Path.Combine(Root, "ui_preview.jsonl"));
-            else
+            try
             {
-                var state = Packages.ReadState();
-                if (state.Current != null) TranslationPackageStore.Verify(Packages.PackagePath(state.Current), state.Current);
-                UiTranslationService.Reload(state.Current != null ? Packages.PackagePath(state.Current) : Path.Combine(Root, "ui_translations.jsonl"));
+                string path;
+                if (usePreview) path = Path.Combine(Root,"ui_preview.jsonl");
+                else
+                {
+                    var state = Packages.ReadState();
+                    if (state.Current != null) TranslationPackageStore.Verify(Packages.PackagePath(state.Current),state.Current);
+                    path = state.Current != null ? Packages.PackagePath(state.Current) : Path.Combine(Root,"ui_translations.jsonl");
+                }
+                var candidate = new PreparedText(request,path,RuntimeAsset.Load(path));
+                if (Lifetime.IsCancellationRequested || request != Volatile.Read(ref textRequest)) return;
+                if (!runtimeReady) UiTranslationService.Install(candidate.Index,candidate.Path);
+                else MainThread.Enqueue(() => { if (!Lifetime.IsCancellationRequested && request == Volatile.Read(ref textRequest)) pendingText = candidate; });
             }
+            catch (Exception e) { Plugin.Global.Log.LogWarning("[UI Translation] Active package unavailable; previous index retained: " + e.Message); }
         }
-        catch (Exception e) { Plugin.Global.Log.LogWarning("[UI Translation] Active package unavailable; previous index retained: " + e.Message); }
+        if (runtimeReady) RunPreparation(() => { if (request == Volatile.Read(ref textRequest)) Prepare(); }); else Prepare();
     }
 
     private static void LoadActiveImages()
     {
+        var request = Interlocked.Increment(ref imageRequest);
+        void Prepare()
+        {
+            try
+            {
+                var state = Images.ReadState();
+                if (state.Current != null) ImagePackageStore.VerifyDirectory(Images.PackagePath(state.Current),state.Current);
+                var path = state.Current != null ? Images.PackagePath(state.Current) : Path.Combine(Root,"ui_images");
+                var candidate = new PreparedImages(request,PreparedImagePackage.Load(path));
+                if (Lifetime.IsCancellationRequested || request != Volatile.Read(ref imageRequest)) return;
+                if (!runtimeReady) UiImageTranslationService.Install(candidate.Package);
+                else MainThread.Enqueue(() => { if (!Lifetime.IsCancellationRequested && request == Volatile.Read(ref imageRequest)) pendingImages = candidate; });
+            }
+            catch (Exception e) { Plugin.Global.Log.LogWarning("[UI Images] Active package unavailable; previous images retained: " + e.Message); }
+        }
+        if (runtimeReady) RunPreparation(() => { if (request == Volatile.Read(ref imageRequest)) Prepare(); }); else Prepare();
+    }
+
+    private static void RunPreparation(Action prepare) => _ = Task.Run(async () =>
+    {
         try
         {
-            var state = Images.ReadState();
-            if (state.Current != null) ImagePackageStore.VerifyDirectory(Images.PackagePath(state.Current), state.Current);
-            UiImageTranslationService.Reload(state.Current != null ? Images.PackagePath(state.Current) : Path.Combine(Root, "ui_images"));
+            await PreparationGate.WaitAsync(Lifetime.Token);
+            try { if (!Lifetime.IsCancellationRequested) prepare(); }
+            finally { PreparationGate.Release(); }
         }
-        catch (Exception e) { Plugin.Global.Log.LogWarning("[UI Images] Active package unavailable; previous images retained: " + e.Message); }
-    }
+        catch (OperationCanceledException) when (Lifetime.IsCancellationRequested) { }
+    });
 
     private static void StartUpdate(bool rollback, bool imagesOnly = false)
     {
@@ -141,6 +191,7 @@ internal static class UiRuntimeController
         if (Interlocked.CompareExchange(ref updateRunning, 1, 0) != 0) return;
         var url = TSKConfig.Settings.ManifestUrl.Value.Trim();
         var imageUrl = TSKConfig.Settings.ImageManifestUrl.Value.Trim();
+        Interlocked.Exchange(ref pendingProgress,null);
         UiUpdatePopup.Show(rollback ? (imagesOnly ? "正在回退图片资源…" : "正在回退文字资源…") : "正在检查翻译资源更新…");
         _ = Task.Run(async () =>
         {
@@ -163,7 +214,7 @@ internal static class UiRuntimeController
             Action<ResourceUpdateProgress> Progress(string channel) => value =>
             {
                 if (Lifetime.IsCancellationRequested) return;
-                MainThread.Enqueue(() =>
+                Interlocked.Exchange(ref pendingProgress,() =>
                 {
                     var text = value.Stage switch
                     {
@@ -191,6 +242,7 @@ internal static class UiRuntimeController
                 }
                 if (!Lifetime.IsCancellationRequested) MainThread.Enqueue(() =>
                 {
+                    Interlocked.Exchange(ref pendingProgress,null);
                     var message = string.Join("\n", results);
                     Report(message);
                     UiUpdatePopup.Show(message, complete: true);
@@ -201,6 +253,7 @@ internal static class UiRuntimeController
             {
                 if (!Lifetime.IsCancellationRequested) MainThread.Enqueue(() =>
                 {
+                    Interlocked.Exchange(ref pendingProgress,null);
                     Report("资源切换未完成：" + e.Message);
                     UiUpdatePopup.Show("资源切换未完成，保留现有资源", complete: true);
                 });
@@ -241,6 +294,9 @@ internal static class UiRuntimeController
     {
         if (Interlocked.Exchange(ref stopped, 1) != 0) return;
         Lifetime.Cancel();
+        Interlocked.Exchange(ref pendingText,null);
+        Interlocked.Exchange(ref pendingImages,null);
+        Interlocked.Exchange(ref pendingProgress,null);
         UiTextCaptureService.Shutdown();
         UiImageTranslationService.Shutdown();
         UiUpdatePopup.Shutdown();

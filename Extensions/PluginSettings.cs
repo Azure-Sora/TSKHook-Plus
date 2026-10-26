@@ -36,6 +36,7 @@ public sealed class PluginSettings
     public ConfigEntry<int> Height { get; }
     public ConfigEntry<float> Zoom { get; }
     public ConfigEntry<bool> UiTranslation { get; }
+    public ConfigEntry<bool> ImageTranslation { get; }
     public ConfigEntry<ChineseScript> Script { get; }
     public ConfigEntry<bool> Capture { get; }
     public ConfigEntry<int> FlushSeconds { get; }
@@ -58,6 +59,7 @@ public sealed class PluginSettings
         Zoom = Bind("General", "CharacterZoom", 1f, "立绘缩放", "原立绘缩放功能；下次刷新立绘时应用。", new AcceptableValueRange<float>(0.1f, 10f));
         Translation = Bind("Translation", "Enabled", true, "翻译总开关", "与 F11 使用同一设置；已加载页面可能需要重新打开。", null);
         UiTranslation = Bind("Translation", "UIEnabled", true, "UI 汉化", "总翻译开启时有效；包括文本和已安装的常驻 UI 图片。", null);
+        ImageTranslation = Bind("Translation", "ImagesEnabled", true, "图片汉化", "独立控制图片覆盖；新图片准备延后至战斗结束。", null);
         Script = Bind("Translation", "ChineseScript", ChineseScript.Original, "中文简繁转换", "保持原样、简体或繁体；仅逐字转换译文，不处理词语，不转换图片。已打开页面可能需要重新进入。", null);
         Capture = Bind("Capture", "Enabled", false, "捕获新文本", "结构化捕获并增量保存；可随时开关。", null);
         FlushSeconds = Bind("Capture", "FlushSeconds", 5, "写入间隔（秒）", "批量写入捕获记录；关闭捕获时立即保存。", new AcceptableValueRange<int>(1, 300));
