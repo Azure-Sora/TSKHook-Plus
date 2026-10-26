@@ -10,15 +10,15 @@
 
 保留游戏已有的 BepInEx 6 / IL2CPP 安装。将发行包的 `TSKHook.dll` 放入 `BepInEx/plugins`。从旧双 DLL 版升级时，关闭游戏后覆盖主 DLL，并移除旧的 `TSKHook.Translation.Core.dll`；保留已有配置、字体、捕获和译文目录。安装 [anosu/ConfigurationManager 的 IL2CPP 发行版](https://github.com/anosu/BepInEx.ConfigurationManager/releases)，其中 `ConfigurationManager.dll` 和 `BepInEx.KeyboardShortcut.dll` 必须一起安装。不要用构建依赖替换游戏 BepInEx 核心程序集。
 
-按 **F1** 打开设置；管理器负责此按键，原插件不再用 F1 重载。首次运行将旧 `plugins/config.json` 导入 BepInEx 配置，旧文件保留但不再作为配置源。所有设置和 F11 使用同一份配置。需要重新读取磁盘配置时，在 **Maintenance / 执行操作** 中选择“重新读取并应用配置”；操作执行后自动恢复“无操作”。
+安装并成功加载 ConfigurationManager 时，按 **F1** 打开设置；未加载管理器时，F1 回退为重新读取并应用配置。首次运行将旧 `plugins/config.json` 导入 BepInEx 配置，旧文件保留但不再作为配置源。所有设置和 F11 使用同一份配置。需要重新读取磁盘配置时，在 **Maintenance / 执行操作** 中选择“重新读取并应用配置”；操作执行后自动恢复“无操作”。
 
 界面中有设置生效时机说明。ConfigurationManager 未安装时仍可在关闭游戏后编辑 `BepInEx/config/` 中的插件配置。安装兼容性、字体和游戏内输入仍需要按本游戏验证。
 
 ## UI 汉化与更新
 
-当前推荐 [插件 v1.6.1](https://github.com/Azure-Sora/TSKHook-Plus/releases/tag/v1.6.1) 和 [文字包 2026.10.15.1](https://github.com/Azure-Sora/TSKHook-UITranslations/releases/tag/translations-2026.10.15.1)。紧急修复“挑戦回数”控制标识被翻译导致的按钮异常，同时保护重试及下一关消耗字段；详见 [修复说明](Extensions/docs/challenge-count-hotfix-2026-10-15.md)。关闭游戏后替换插件 DLL，重新启动并重新进入结果页；文字包可独立自动更新。本次保护逻辑已通过托管回归，真实游戏按钮尚待复测。
+当前推荐 [插件 v1.7.2](https://github.com/Azure-Sora/TSKHook-Plus/releases/tag/v1.7.2) 和 [文字包 2026.10.15.1](https://github.com/Azure-Sora/TSKHook-UITranslations/releases/tag/translations-2026.10.15.1)。1.7.2 包含 UI 翻译性能优化、独立图片开关、F1 回退和仅启动检查更新。保留“挑戦回数”控制标识保护，避免翻译导致的按钮异常，同时保护重试及下一关消耗字段；详见 [修复说明](Extensions/docs/challenge-count-hotfix-2026-10-15.md)。关闭游戏后替换插件 DLL，重新启动并重新进入结果页；文字包可独立自动更新。本次保护逻辑已通过托管回归，真实游戏按钮尚待复测。
 
-默认启动后检查翻译包，之后每小时检查一次；失败保留已有译文。维护菜单可手动检查、重载或回退上一份远程翻译包。旧 `plugins/TSKHook/ui_translations.jsonl` 可继续作为离线初始译文。F10 保留剧情缓存清理并重新加载当前 UI 包。
+默认仅在启动游戏后检查一次文字与图片资源（约 15 秒延迟）；失败保留已有译文，不再每小时检查。维护菜单可手动检查、重载或回退上一份远程翻译包。旧 `plugins/TSKHook/ui_translations.jsonl` 可继续作为离线初始译文。F10 保留剧情缓存清理并重新加载当前 UI 包。
 
 1.6.0 在右下角使用 Unity 小弹窗显示文字/图片检查、下载进度和结果；文字与图片独立版本、独立更新和回退。图片源及构建工具在翻译仓，插件构建只输出运行时 DLL。F1 → Translation → 中文简繁转换可选择保持原样、简体或繁体；只逐字转换译文，图片字形由图片包决定。详见 [资源更新与简繁配置](Extensions/docs/resource-updates-and-script.md)。新 DLL 已完成限定实机验收，范围见验证记录。插件标签 v1.6.0；配套文字 translations-2026.10.14.2 和图片 images-2026.10.14.3 在翻译仓独立发布。
 
@@ -82,7 +82,7 @@ Press F1 to open ConfigurationManager. Legacy JSON settings are imported once; u
 
 | Key  | Type        | Description                                                                   |
 |------|-------------|-------------------------------------------------------------------------------|
-| F1   | Settings    | Open ConfigurationManager; use Maintenance to reload configuration |
+| F1   | Settings    | Open ConfigurationManager if loaded; otherwise reload configuration |
 | F5   | Freeze      | Freeze game, mean set game speed to 0x                                        |
 | F6   | Reset       | Reset game speed to 1x/normal                                                 | 
 | F7   | Decrease    | Decrease game speed (2-0.5 etc), depends on your `speed` config               | 

@@ -18,7 +18,8 @@ internal static class UiRuntimeController
     private static readonly string Root = Path.Combine(Paths.PluginPath, "TSKHook");
     private static readonly TranslationPackageStore Packages = new(Path.Combine(Root, "packages"));
     private static readonly ImagePackageStore Images = new(Path.Combine(Root, "image-packages"));
-    private static DateTime nextUpdate = DateTime.UtcNow.AddSeconds(15);
+    private static readonly DateTime startupUpdateAt = DateTime.UtcNow.AddSeconds(15);
+    private static bool startupUpdatePending = true;
     private static DateTime nextPreview;
     private static DateTime previewStamp;
     private static int updateRunning;
@@ -89,6 +90,9 @@ internal static class UiRuntimeController
             catch (Exception e) { Report("配置应用失败：" + e.Message); }
         }
         var action = TSKConfig.Settings.Action.Value;
+        // ConfigurationManager owns F1 when loaded; otherwise keep the original reload shortcut.
+        if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F1) && !HasConfigurationManager)
+            action = MaintenanceAction.ReloadConfiguration;
         if (action != MaintenanceAction.None)
         {
             TSKConfig.Settings.Action.Value = MaintenanceAction.None;
@@ -112,9 +116,9 @@ internal static class UiRuntimeController
             catch (Exception e) { Report("操作失败：" + e.Message); }
         }
         var now = DateTime.UtcNow;
-        if (now >= nextUpdate)
+        if (startupUpdatePending && now >= startupUpdateAt)
         {
-            nextUpdate = now.AddHours(1);
+            startupUpdatePending = false;
             if (TSKConfig.Settings.AutoUpdate.Value && !TSKConfig.Settings.LocalPreview.Value) StartUpdate(false);
         }
         if (preview && now >= nextPreview)
@@ -266,22 +270,27 @@ internal static class UiRuntimeController
         });
     }
 
-    private static bool IsManagerVisible()
+    private static bool HasConfigurationManager
     {
-        if (!managerSearched)
+        get
         {
-            managerSearched = true;
-            foreach (var entry in IL2CPPChainloader.Instance.Plugins.Values)
-                if (entry.Metadata.GUID == "com.bepis.bepinex.configurationmanager")
-                {
-                    manager = entry.Instance;
-                    managerVisible = manager?.GetType().GetProperty("DisplayingWindow");
-                    break;
-                }
-            if (manager == null) Plugin.Global.Log.LogWarning("[Config] Install ConfigurationManager IL2CPP to open settings with F1.");
+            if (!managerSearched)
+            {
+                managerSearched = true;
+                foreach (var entry in IL2CPPChainloader.Instance.Plugins.Values)
+                    if (entry.Metadata.GUID == "com.bepis.bepinex.configurationmanager")
+                    {
+                        manager = entry.Instance;
+                        managerVisible = manager?.GetType().GetProperty("DisplayingWindow");
+                        break;
+                    }
+                if (manager == null) Plugin.Global.Log.LogInfo("[Config] ConfigurationManager not loaded; F1 reloads configuration.");
+            }
+            return manager != null;
         }
-        return managerVisible?.GetValue(manager) is true;
     }
+
+    private static bool IsManagerVisible() => HasConfigurationManager && managerVisible?.GetValue(manager) is true;
 
     private static void Report(string message)
     {

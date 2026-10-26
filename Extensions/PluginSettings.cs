@@ -63,7 +63,7 @@ public sealed class PluginSettings
         Script = Bind("Translation", "ChineseScript", ChineseScript.Original, "中文简繁转换", "保持原样、简体或繁体；仅逐字转换译文，不处理词语，不转换图片。已打开页面可能需要重新进入。", null);
         Capture = Bind("Capture", "Enabled", false, "捕获新文本", "结构化捕获并增量保存；可随时开关。", null);
         FlushSeconds = Bind("Capture", "FlushSeconds", 5, "写入间隔（秒）", "批量写入捕获记录；关闭捕获时立即保存。", new AcceptableValueRange<int>(1, 300));
-        AutoUpdate = Bind("Updates", "Enabled", true, "自动更新翻译资源", "启动后及每小时分别检查文字与图片；失败保留本地资源，右下角显示检查及更新进度。", null);
+        AutoUpdate = Bind("Updates", "Enabled", true, "自动更新翻译资源", "仅在游戏启动后检查一次文字与图片；失败保留本地资源，右下角显示检查及更新进度。可通过维护菜单手动检查。", null);
         ManifestUrl = Bind("Updates", "ManifestUrl", "https://github.com/Azure-Sora/TSKHook-UITranslations/releases/latest/download/manifest.json", "文字更新清单地址", "HTTPS 文字包清单；修改后下次检查使用。", null);
         ImageManifestUrl = Bind("Updates", "ImageManifestUrl", "https://github.com/Azure-Sora/TSKHook-UITranslations/releases/download/image-channel/image-manifest.json", "图片更新清单地址", "独立图片资源渠道；图片版本与文字版本互不影响。首次发布渠道前检查失败会继续使用本地图片。", null);
         LocalPreview = Bind("Updates", "LocalPreview", false, "本地预览模式", "维护者专用：读取 ui_preview.jsonl 并监听变化；暂停公共包更新。", null);
